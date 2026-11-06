@@ -1,0 +1,12 @@
+[submodule "native/windows-helpers"]
+	path = native/windows-helpers
+	url = https://github.com/QAQ-Revival/Windows-Helpers.git
+	branch = main
+[submodule "bridges/mega"]
+	path = bridges/mega
+	url = https://github.com/QAQ-Revival/MEGA-Worker.git
+	branch = main
+[submodule "native/arknights-tools"]
+	path = native/arknights-tools
+	url = https://github.com/ShuW7/MOD-Tools.git
+	branch = main

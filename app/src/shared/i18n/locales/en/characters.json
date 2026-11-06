@@ -1,0 +1,44 @@
+{
+  "actions": {
+    "add": "Add character",
+    "pin": "Pin to top",
+    "unpin": "Unpin",
+    "openSource": "Open source folder",
+    "hide": "Hide character"
+  },
+  "search": {
+    "placeholder": "Search characters"
+  },
+  "empty": {
+    "noMods": "No characters with Mods yet",
+    "showAll": "Show all characters"
+  },
+  "fixer": {
+    "title": "Fixer"
+  },
+  "import": {
+    "globalDropHint": "Drop a Mod, package, update, or fixer",
+    "moreTitle": "More import options",
+    "uiTarget": "UI resources",
+    "characterTarget": "Characters",
+    "unmatchedGroup": "Unmatched (defaults to UI resources)"
+  },
+  "card": {
+    "enabled": "Enabled {{enabled}} / {{total}}",
+    "noMods": "No Mods"
+  },
+  "shared": {
+    "title": "UI resources",
+    "hint": "UI and other shared Mods",
+    "summary": "{{count}} UI resources · {{mods}} Mods"
+  },
+  "filter": {
+    "showAll": "Show all characters"
+  },
+  "scope": {
+    "characters": "Characters",
+    "shared": "Shared resources",
+    "summary": "{{count}} shared resources · {{mods}} Mods",
+    "label": "Character view"
+  }
+}

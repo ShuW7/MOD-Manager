@@ -1,0 +1,177 @@
+/* Arknights diagnosis dialog and library notice */
+/* Bottom-left of the library: the right side holds the Mod details footer actions. */
+.arknights-library-notice {
+  right: auto;
+  left: 16px;
+  z-index: 3;
+}
+
+.arknights-library-notice > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.arknights-library-notice .icon-btn {
+  margin: -3px -6px -3px 0;
+}
+
+.arknights-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 880px;
+  user-select: text;
+}
+
+.arknights-dialog .dialog-actions {
+  margin-top: 6px;
+}
+
+.arknights-dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.arknights-dialog-title {
+  min-width: 0;
+}
+
+.arknights-hint {
+  color: var(--fg-3);
+  font-size: var(--text-xs);
+}
+
+.arknights-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg-2);
+  font-size: var(--text-sm);
+}
+
+.arknights-summary {
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.arknights-resource-groups,
+.arknights-selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.arknights-resource-groups label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.arknights-resource-groups input {
+  margin: 0;
+}
+
+.arknights-selection-actions {
+  gap: 6px 8px;
+}
+
+.arknights-selection-actions > span {
+  margin-left: auto;
+  color: var(--fg-2);
+  font-size: var(--text-xs);
+}
+
+.arknights-warnings ul {
+  margin: 0;
+  padding-left: 14px;
+}
+
+.arknights-plan {
+  max-height: 42vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.arknights-plan table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--fg-2);
+  font-size: var(--text-xs);
+}
+
+.arknights-plan th,
+.arknights-plan td {
+  min-width: 120px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.arknights-plan tr:last-child td {
+  border-bottom: 0;
+}
+
+.arknights-plan th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-2);
+  color: var(--fg-3);
+  font-weight: 500;
+}
+
+.arknights-plan th:first-child,
+.arknights-plan td.arknights-select-cell {
+  width: 44px;
+  min-width: 44px;
+}
+
+.arknights-plan td.arknights-select-cell input {
+  margin: 0;
+}
+
+.arknights-plan td:last-child {
+  min-width: 100px;
+}
+
+.arknights-plan small {
+  display: block;
+  margin-top: 2px;
+  color: var(--fg-3);
+  font-size: var(--text-xs);
+}
+
+/* Text Mod configuration dialog */
+.text-config-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  margin: 4px 0 12px;
+}
+
+.text-config-form .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary, #8a8f98);
+}
+
+.text-config-form .form-field.checkbox-field {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary, inherit);
+}
+
+.text-config-form .input {
+  min-width: 0;
+}

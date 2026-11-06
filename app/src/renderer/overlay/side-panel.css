@@ -1,0 +1,149 @@
+/* Side window: character browser and Mod details share this frame. */
+.side-root {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  padding: 8px;
+}
+
+.side-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: rgb(var(--panel-rgb) / 0.95);
+  box-shadow: var(--shadow-panel);
+}
+
+.side-header {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+  height: 44px;
+  padding: 0 6px 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.side-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-md);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.side-body {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.side-toast {
+  bottom: 60px;
+}
+
+/* Character browser */
+.side-character-search {
+  display: flex;
+  flex: none;
+  padding: 8px 8px 0;
+}
+
+.side-character-search[hidden],
+.bubble-avatar[hidden],
+.side-character-empty[hidden] {
+  display: none;
+}
+
+.side-character-empty {
+  padding: 24px 8px;
+  color: var(--fg-3);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.bubble-grid {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  align-content: start;
+  gap: 4px;
+  padding: 8px;
+}
+
+.bubble-avatar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  color: var(--fg-2);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.bubble-avatar:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+
+.bubble-avatar-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--tile-bg);
+  color: var(--fg-3);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.bubble-avatar-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.bubble-avatar-name {
+  overflow: hidden;
+  font-size: var(--text-xs);
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bubble-avatar.active {
+  background: var(--accent-soft-2);
+  color: var(--accent-text);
+}
+
+/* Strong compatibility mode: opaque, flat, no zoom */
+html.overlay-compat .side-root {
+  padding: 0;
+}
+
+html.overlay-compat .side-panel {
+  border-radius: 0;
+  background: var(--bg-raised);
+  box-shadow: none;
+}
+
+html.overlay-compat #sideZoomOut,
+html.overlay-compat #sideZoomIn {
+  display: none;
+}

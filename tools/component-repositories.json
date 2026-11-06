@@ -1,0 +1,102 @@
+{
+  "arknights-tools": {
+    "source": "native/arknights-tools",
+    "repository": "ShuW7/MOD-Tools",
+    "branch": "main",
+    "build": "build-qaqr.cjs",
+    "exports": [
+      "native",
+      "python",
+      "cursor",
+      "tools",
+      "tests",
+      "licenses",
+      "build-qaqr.cjs",
+      "BUILDING.md",
+      "sources.json",
+      "LICENSE",
+      ".gitignore",
+      ".gitmodules",
+      ".github"
+    ],
+    "dependencies": [
+      {
+        "path": "vendor/minhook",
+        "url": "https://github.com/QAQ-Revival/minhook.git",
+        "branch": "master"
+      },
+      {
+        "path": "vendor/UnityPy",
+        "url": "https://github.com/QAQ-Revival/UnityPy.git",
+        "branch": "master"
+      },
+      {
+        "path": "vendor/Ark-Unpacker",
+        "url": "https://github.com/QAQ-Revival/Ark-Unpacker.git",
+        "branch": "v5.x"
+      }
+    ],
+    "targets": {
+      "arknights-tools": {
+        "output": "local-components/arknights-tools"
+      }
+    }
+  },
+  "windows-helpers": {
+    "source": "native/windows-helpers",
+    "repository": "QAQ-Revival/Windows-Helpers",
+    "branch": "main",
+    "build": "build.cjs",
+    "exports": [
+      "key-helper",
+      "tray-host",
+      "build.cjs",
+      "README.md",
+      "LICENSE",
+      ".gitignore",
+      ".github"
+    ],
+    "targets": {
+      "key-helper": {
+        "component": "key-helper",
+        "output": "build/native/key-helper",
+        "testOutput": "build/native/key-helper-tests"
+      },
+      "tray-host": {
+        "component": "tray-host",
+        "output": "app/resources/tray-host"
+      }
+    }
+  },
+  "mega-worker": {
+    "source": "bridges/mega",
+    "repository": "QAQ-Revival/MEGA-Worker",
+    "branch": "main",
+    "build": "build.cjs",
+    "exports": [
+      "Host.vb",
+      "Worker.vb",
+      "TestConfiguration.vb",
+      "tests",
+      "build.cjs",
+      "README.md",
+      "LICENSE",
+      ".gitignore",
+      ".github"
+    ],
+    "dependencies": [
+      {
+        "path": "vendor/MegaDownloader-Revival",
+        "url": "https://github.com/QAQ-Revival/MegaDownloader-Revival.git",
+        "branch": "main"
+      }
+    ],
+    "targets": {
+      "mega-worker": {
+        "output": "app/resources/mega-worker",
+        "testOutput": "build/mega-worker-test",
+        "work": "build/mega-worker"
+      }
+    }
+  }
+}

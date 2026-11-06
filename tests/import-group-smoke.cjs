@@ -1,0 +1,92 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const { createRequire } = require('node:module');
+module.exports = async ({ evaluate, waitFor, captureUI, window, root, setSelection, passed }) => {
+  await evaluate(`localStorage.setItem('batch-import-guide-dismissed', 'true')`);
+  async function dropArchive(importPath) {
+    const position = await evaluate(`(() => { const r = document.querySelector('.character-toolbar-subtitle').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+    const alreadyAttached = window.webContents.debugger.isAttached();
+    if (!alreadyAttached) window.webContents.debugger.attach('1.3');
+    try {
+      for (const type of ['dragEnter', 'dragOver', 'drop']) {
+        await window.webContents.debugger.sendCommand('Input.dispatchDragEvent', {
+          type, ...position, data: { items: [], files: [importPath], dragOperationsMask: 1 }
+        });
+      }
+    } finally {
+      if (!alreadyAttached) window.webContents.debugger.detach();
+    }
+  }
+  async function importFixture(name, target, confirm = false, archive = false, cached = false) {
+    const source = path.join(root, 'manual-group-import', name);
+    const bytes = '[TextureOverrideImportFixture]\nhash = deadbeef\n';
+    fs.mkdirSync(source, { recursive: true });
+    fs.writeFileSync(path.join(source, 'mod.ini'), bytes);
+    let importPath = source;
+    if (archive) {
+      const runtimeRequire = createRequire(path.join(process.resourcesPath, 'app/package.json'));
+      importPath = source + (archive === 'rar' ? '.RAR' : '.7z');
+      if (archive === 'rar') fs.copyFileSync(path.join(__dirname, 'fixtures/import-mod.rar'), importPath);
+      else execFileSync(runtimeRequire('7zip-bin').path7za, ['a', importPath, name], {
+        cwd: path.dirname(source), windowsHide: true, stdio: 'pipe'
+      });
+      if (cached) {
+        const archiveBytes = fs.readFileSync(importPath);
+        importPath = await runtimeRequire('./out/main/market/downloads.cjs').downloadMarketFile(
+          { sender: { send() {} } }, 'import-name-fixture',
+          { fileName: path.basename(importPath), url: 'https://fixture.invalid/' + encodeURIComponent(name) },
+          null, async () => new Response(archiveBytes)
+        );
+        assert.match(path.basename(importPath), /^[a-f0-9]{16}-/);
+      }
+      await dropArchive(importPath);
+    } else {
+      setSelection({ canceled: false, filePaths: [importPath] });
+      await evaluate(`document.querySelector('.batch-import-trigger-btn').click()`);
+    }
+    await waitFor(`!!document.querySelector('.batch-import-overlay')`, 'import preview');
+    assert.equal(await evaluate(`document.querySelector('.batch-import-item-primary').textContent.trim()`), name);
+    await evaluate(`[...document.querySelectorAll('.batch-import-overlay button')].find(button => button.textContent.includes('开始分析')).click()`);
+    await waitFor(`!!document.querySelector('[aria-label="导入目标分组"]')`, 'classification');
+    const previous = await evaluate(`document.querySelector('[aria-label="导入目标分组"]').value`);
+    if (!name.startsWith('安可')) assert.equal(previous, '');
+    else assert.equal(previous, '安可');
+    await evaluate(`(() => { const input = document.querySelector('[aria-label="导入目标分组"]'); input.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(target)}); input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    if (confirm) await evaluate(`document.querySelector('[aria-label="导入目标分组"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
+    if (target === '测试') await captureUI('import-custom-group.png');
+    await evaluate(`[...document.querySelectorAll('.batch-import-overlay button')].find(button => button.textContent.includes('开始安装')).click()`);
+    await waitFor(`!!document.querySelector('.batch-import-done-summary')`, 'import completes');
+    assert.match(await evaluate(`document.querySelector('.batch-import-done-summary').textContent`), /1 个成功，0 个失败/);
+    const expected = target.trim() || '其他';
+    assert.equal(await evaluate(`document.querySelector('.batch-import-result-char').textContent`), expected);
+    assert.equal(fs.readFileSync(path.join(root, 'wuwa-mods', expected, name, 'mod.ini'), 'utf8'), bytes);
+    if (cached) assert.equal(fs.existsSync(importPath), true, 'import keeps the cached download');
+    if (expected !== '其他') assert.equal(fs.existsSync(path.join(root, 'wuwa-mods', '其他', name)), false);
+    await evaluate(`[...document.querySelectorAll('.batch-import-overlay button')].find(button => button.textContent.trim() === '完成').click()`);
+    await waitFor(`!document.querySelector('.batch-import-overlay')`, 'import dismissed');
+  }
+  await importFixture('UnmappedImportAlpha', '测试'); // No Enter/option selection: typing alone must be sufficient.
+  await importFixture('安可_ImportBeta', ' 新分组 ', true); // Editing an automatic match overrides it.
+  await importFixture('UnmappedImportGamma', ''); // Intentionally blank still uses the fallback.
+  passed('Real import: unknown grouping honors a typed new name without Enter, edited automatic matches honor trimmed names, and only blank input falls back to 其他');
+  await importFixture('安可_NormalArchive', '安可', false, true);
+  passed('Ordinary 7z Mod passes analysis and installs intact without being treated as a disguised archive');
+  await importFixture('安可_Normal RAR', '安可', false, 'rar');
+  passed('RAR5 Mod with a Chinese name, spaces and uppercase extension passes analysis and installs intact using bundled UnRAR');
+  await importFixture('安可_Cached Mod v1.2', '安可', false, true, true);
+  passed('Downloaded archive keeps its original Mod name through preview, analysis and installation without the cache hash');
+  const brokenArchive = path.join(root, 'invalid.rar');
+  fs.writeFileSync(brokenArchive, 'This is not an archive');
+  await dropArchive(brokenArchive);
+  await waitFor(`!!document.querySelector('.batch-import-overlay')`, 'invalid RAR preview');
+  await evaluate(`[...document.querySelectorAll('.batch-import-overlay button')].find(button => button.textContent.includes('开始分析')).click()`);
+  await waitFor(`!!document.querySelector('.batch-import-summary')`, 'invalid RAR analysis result');
+  const failureText = await evaluate(`document.querySelector('.batch-import-overlay').textContent`);
+  assert.match(failureText, /分析失败:.*UnRAR 解压失败/s);
+  assert.doesNotMatch(failureText, /解密失败/);
+  await evaluate(`[...document.querySelectorAll('.batch-import-overlay button')].find(button => button.textContent.trim() === '取消').click()`);
+  await waitFor(`!document.querySelector('.batch-import-overlay')`, 'invalid RAR dismissed');
+  passed('An invalid RAR reports the extraction failure without labeling it a decryption failure');
+};
