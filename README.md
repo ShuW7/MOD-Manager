@@ -1,10 +1,4 @@
 <p align="center">
-  <img src="app/resources/icon.png" alt="QAQ-Revival 应用图标" width="144" />
-</p>
-
-<h1 align="center">QAQ-Revival</h1>
-
-<p align="center">
   Windows 平台《明日方舟》Mod 管理器：角色库、Mod 下载、文本/AB 包 MOD、加载器与运行时资源管理。
 </p>
 
