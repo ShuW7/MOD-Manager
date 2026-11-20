@@ -753,23 +753,6 @@
   color: var(--fg-3);
 }
 
-/* Small confirmation details */
-.dx12-risk-path {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  color: var(--fg-3);
-  font-size: var(--text-xs);
-}
-
-.dx12-risk-path code {
-  padding: 6px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: var(--fg);
-  overflow-wrap: anywhere;
-}
-
 .input.is-invalid {
   border-color: var(--danger);
 }

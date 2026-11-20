@@ -7,7 +7,6 @@ const utils = require("@electron-toolkit/utils");
 const configStore = require("../config/store.cjs");
 const gamesSettings = require("../games/settings.cjs");
 const marketAccess = require("./access.cjs");
-const marketSettings = require("./settings.cjs");
 const netQaqm = require("../net/qaqm.cjs");
 const MAX_INCREMENTAL_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
 function isStaleIncrementalCache(cache) {
@@ -55,10 +54,6 @@ function loadModCache(gameId2 = gamesSettings.getActiveGameScopeId()) {
     if (fs.existsSync(cachePath)) {
       const data = fs.readFileSync(cachePath, "utf-8");
       return gamesSettings.normalizeCachePayload(JSON.parse(data));
-    }
-    if (marketGameId === "endfield" && cachePath !== marketSettings.LEGACY_MOD_CACHE_PATH && fs.existsSync(marketSettings.LEGACY_MOD_CACHE_PATH)) {
-      const legacyData = fs.readFileSync(marketSettings.LEGACY_MOD_CACHE_PATH, "utf-8");
-      return gamesSettings.normalizeCachePayload(JSON.parse(legacyData));
     }
   } catch (e) {
     console.error("Failed to load mod cache:", e);

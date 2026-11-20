@@ -6,8 +6,6 @@ import { WindowControls } from "./WindowControls.jsx";
 import { Icon } from "./Icon.jsx";
 import { useSortableOrder } from "../hooks/useSortableOrder.js";
 
-const SETTINGS_TABS = ["settings"];
-
 const TopBar = React.memo(function TopBar({
   activeTab,
   setActiveTab,
@@ -15,110 +13,145 @@ const TopBar = React.memo(function TopBar({
   currentCharacter,
   onHome,
 }) {
+  const [collapsed, setCollapsed] = React.useState(() => {
+    try {
+      return localStorage.getItem("qaqr.sidebar.collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
   const menuItems = [
     {
       id: "characters",
       label: t("navigation.charactersOverview"),
       icon: "users",
     },
-    {
-      id: "ui",
-      label: t("navigation.uiResources"),
-      icon: "image",
-    },
-    {
-      id: "modmarket",
-      label: t("navigation.modDownloads"),
-      icon: "store",
-    },
-    {
-      id: "presets",
-      label: t("navigation.presetSettings"),
-      icon: "layers",
-    },
+    { id: "ui", label: t("navigation.uiResources"), icon: "image" },
+    { id: "modmarket", label: t("navigation.modDownloads"), icon: "store" },
+    { id: "presets", label: t("navigation.presetSettings"), icon: "layers" },
   ];
-  const sorting = useSortableOrder(menuItems, "qaqm.navigationOrder.v2", true, void 0, "x");
-  const settingsActive = SETTINGS_TABS.includes(activeTab);
+  const sorting = useSortableOrder(
+    menuItems,
+    "qaqm.navigationOrder.v2",
+    true,
+    void 0,
+    "y",
+  );
+  function toggleSidebar() {
+    setCollapsed(!collapsed);
+    try {
+      localStorage.setItem("qaqr.sidebar.collapsed", String(!collapsed));
+    } catch {}
+  }
   return (
-    <header className="app-topbar">
-      <div className="window-drag-region" aria-hidden={true} />
-      <button
-        type="button"
-        className="logo"
-        onClick={onHome}
-        title={t("navigation.charactersOverview")}
-      >
-        {"Q"}
-        <span className="logo-mouth">{"A"}</span>
-        {"QR"}
-      </button>
-      <span className="topbar-game-name">{activeGame?.shortName || activeGame?.name}</span>
-      {(activeTab === "characters" || activeTab === "ui") && currentCharacter && (
-        <>
-          <span className="topbar-divider" aria-hidden={true} />
+    <>
+      <header className="app-topbar">
+        <div className="window-drag-region" aria-hidden={true} />
+        <span className="app-window-name">QAQ-Revival</span>
+        {(activeTab === "characters" || activeTab === "ui") &&
+          currentCharacter && (
+            <button
+              type="button"
+              className="topbar-breadcrumb-current"
+              onClick={() => setActiveTab(activeTab)}
+              title={t("navigation.charactersOverview")}
+            >
+              <Icon name="chevron-right" size={12} /> {currentCharacter}
+            </button>
+          )}
+        <WindowControls />
+      </header>
+      <aside className={`app-sidebar${collapsed ? " is-collapsed" : ""}`}>
+        <div className="sidebar-brand-row">
           <button
             type="button"
-            className="topbar-breadcrumb-current"
-            onClick={() =>
-              setActiveTab(activeTab === "ui" ? "ui" : "characters")
-            }
+            className="sidebar-logo"
+            onClick={onHome}
             title={t("navigation.charactersOverview")}
           >
-            {currentCharacter}
+            QAQR
           </button>
-        </>
-      )}
-      <span className="topbar-divider" aria-hidden={true} />
-      <nav className="nav-menu" aria-label={t("navigation.mainNavigation")}>
-        {sorting.items.map((item) => (
           <button
-            {...sorting.itemProps(item.id)}
             type="button"
-            className={`nav-item ${activeTab === item.id ? "active" : ""}`}
-            aria-label={item.label}
-            aria-current={activeTab === item.id ? "page" : void 0}
-            onClick={() => setActiveTab(item.id)}
-            title={t("navigation.tabSortHint", { label: item.label })}
-            key={item.id}
+            className="icon-btn sidebar-toggle"
+            onClick={toggleSidebar}
+            aria-label={t(
+              collapsed
+                ? "navigation.expandSidebar"
+                : "navigation.collapseSidebar",
+            )}
+            title={t(
+              collapsed
+                ? "navigation.expandSidebar"
+                : "navigation.collapseSidebar",
+            )}
+            aria-expanded={!collapsed}
           >
-            <Icon name={item.icon} className="nav-icon" />
-            <span className="nav-label">{item.label}</span>
+            <Icon
+              name={collapsed ? "chevron-right" : "chevron-left"}
+              size={16}
+            />
           </button>
-        ))}
-      </nav>
-      <div className="sort-announcement sr-only" role="status">
-        {sorting.announcement}
-      </div>
-      {sorting.error && (
-        <div className="topbar-error" role="alert">
-          {sorting.error}
         </div>
-      )}
-      <div className="topbar-actions">
-        <DownloadManagerButton />
-        <button
-          type="button"
-          className={`icon-btn topbar-settings ${settingsActive ? "is-active" : ""}`}
-          aria-label={t("navigation.systemSettings")}
-          aria-current={settingsActive ? "page" : void 0}
-          title={t("navigation.systemSettings")}
-          onClick={() => setActiveTab("settings")}
-        >
-          <Icon name="gear" size={18} />
-        </button>
-        <LaunchControls
-          activeGame={activeGame}
-          settingsActive={activeTab === "settings"}
-          onOpenSettings={() => {
-            try {
-              localStorage.setItem("qaqm.settings.category.v2", "game");
-            } catch {}
-            setActiveTab("settings");
-          }}
-        />
-      </div>
-      <WindowControls />
-    </header>
+        <div className="sidebar-game">
+          <span className="sidebar-game-icon">
+            <Icon name="gamepad" size={25} />
+          </span>
+          <div className="sidebar-game-copy">
+            <span>ARKNIGHTS</span>
+            <strong>
+              {activeGame?.shortName ||
+                activeGame?.name ||
+                t("navigation.currentGame")}
+            </strong>
+          </div>
+        </div>
+        <nav className="nav-menu" aria-label={t("navigation.mainNavigation")}>
+          {sorting.items.map((item) => (
+            <button
+              {...sorting.itemProps(item.id)}
+              type="button"
+              className={`nav-item nav-${item.id} ${activeTab === item.id ? "active" : ""}`}
+              aria-label={item.label}
+              aria-current={activeTab === item.id ? "page" : void 0}
+              onClick={() => setActiveTab(item.id)}
+              title={item.label}
+              key={item.id}
+            >
+              <Icon name={item.icon} size={21} className="nav-icon" />
+              <span className="nav-label">{item.label}</span>
+            </button>
+          ))}
+          <div className="sidebar-nav-divider" />
+          <button
+            type="button"
+            className={`nav-item nav-settings ${activeTab === "settings" ? "active" : ""}`}
+            aria-current={activeTab === "settings" ? "page" : void 0}
+            title={t("navigation.systemSettings")}
+            aria-label={t("navigation.systemSettings")}
+            onClick={() => setActiveTab("settings")}
+          >
+            <Icon name="wrench" size={21} className="nav-icon" />
+            <span className="nav-label">{t("navigation.systemSettings")}</span>
+          </button>
+        </nav>
+        <div className="sort-announcement sr-only" role="status">
+          {sorting.announcement}
+        </div>
+        {sorting.error && (
+          <div className="sidebar-error" role="alert">
+            {sorting.error}
+          </div>
+        )}
+        <div className="sidebar-launch-card">
+          <div className="sidebar-download-row">
+            <span>{t("downloads.title")}</span>
+            <DownloadManagerButton />
+          </div>
+          <LaunchControls activeGame={activeGame} />
+        </div>
+      </aside>
+    </>
   );
 });
 export { TopBar };

@@ -13,14 +13,15 @@ const {
 const configStore = require("../config/store.cjs");
 const coreLogger = require("../core/logger.cjs");
 const gamesDefinitions = require("./definitions.cjs");
-const installPaths = require("../install/paths.cjs");
 const marketAccess = require("../market/access.cjs");
-const marketSettings = require("../market/settings.cjs");
 const systemPaths = require("../system/paths.cjs");
 const dataPaths = require("../runtime/data-paths.cjs");
 let arknightsMigrationAttempted = false;
-function getBuiltInGameDefinition(gameId2) {
-  return gamesDefinitions.BUILTIN_GAME_MAP.get(gameId2) || null;
+
+const LEGACY_GAME_KEYS = ["dx12LauncherPath", "nevernessDx12DisabledModsDir", "modLoaderPath", "xxmiPath", "efmiPath", "loaderPath"];
+
+function getBuiltInGameDefinition(gameId) {
+  return gamesDefinitions.BUILTIN_GAME_MAP.get(gameId) || null;
 }
 function getBuiltInGameImagePath(fileName) {
   const candidates = [path.join(electron.app.getAppPath(), "resources", "pics", "games", fileName), path.join(process.resourcesPath || "", "pics", "games", fileName)].filter(Boolean);
@@ -55,11 +56,9 @@ function createBuiltInGameConfig(definition, overrides = {}) {
     description: definition.description,
     gamePath: "",
     officialLauncherPath: "",
-    modLoaderPath: "",
-    dx12LauncherPath: "",
     modFolderPath: definition.id === "arknights" && configStore.currentConfig.arknightsLegacyDataRoot ? path.join(configStore.currentConfig.arknightsLegacyDataRoot, "Mods") : dataPaths.getDefaultModsPath(definition.id),
     launchMode: definition.defaultLaunchMode,
-    supportedLaunchModes: definition.supportedLaunchModes || ["XXMI"],
+    supportedLaunchModes: definition.supportedLaunchModes || ["ARKNIGHTS"],
     launchArgs: definition.defaultLaunchArgs || "",
     icon: definition.imageFile,
     marketGameId: definition.marketGameId,
@@ -96,15 +95,18 @@ function ensureBuiltInGamesConfigured() {
     configStore.currentConfig.games = [];
     changed = true;
   }
-  const legacyEndfieldOverrides = {
-    modFolderPath: configStore.currentConfig.modsPath || "",
-    gamePath: configStore.currentConfig.gamePath || "",
-    modLoaderPath: configStore.currentConfig.xxmiPath || configStore.currentConfig.efmiPath || configStore.currentConfig.loaderPath || ""
-  };
+  // Arknights-only manager: discard saved entries for other games instead of
+  // continuing to show dead game modules after an upgrade.
+  const allowedGameIds = new Set(gamesDefinitions.BUILTIN_GAMES.map(game => game.id));
+  const retainedGames = configStore.currentConfig.games.filter(game => game && allowedGameIds.has(game.id));
+  if (retainedGames.length !== configStore.currentConfig.games.length) {
+    configStore.currentConfig.games = retainedGames;
+    changed = true;
+  }
   for (const definition of gamesDefinitions.BUILTIN_GAMES) {
     let game = configStore.currentConfig.games.find(item => item.id === definition.id || item.name === definition.name);
     if (!game) {
-      game = createBuiltInGameConfig(definition, definition.id === "endfield" ? legacyEndfieldOverrides : {});
+      game = createBuiltInGameConfig(definition);
       configStore.currentConfig.games.push(game);
       changed = true;
     }
@@ -116,7 +118,13 @@ function ensureBuiltInGamesConfigured() {
         changed = true;
       }
     }
-    const expectedSupportedLaunchModes = definition.supportedLaunchModes || ["XXMI"];
+    for (const legacyKey of LEGACY_GAME_KEYS) {
+      if (Object.hasOwn(game, legacyKey)) {
+        delete game[legacyKey];
+        changed = true;
+      }
+    }
+    const expectedSupportedLaunchModes = definition.supportedLaunchModes || ["ARKNIGHTS"];
     if (JSON.stringify(game.supportedLaunchModes || []) !== JSON.stringify(expectedSupportedLaunchModes)) {
       game.supportedLaunchModes = [...expectedSupportedLaunchModes];
       changed = true;
@@ -129,56 +137,16 @@ function ensureBuiltInGamesConfigured() {
       game.launchArgs = definition.defaultLaunchArgs;
       changed = true;
     }
-    if (game.dx12LauncherPath === void 0) {
-      game.dx12LauncherPath = "";
-      changed = true;
-    }
-    if (game.nevernessDx12DisabledModsDir === void 0) {
-      game.nevernessDx12DisabledModsDir = "";
-      changed = true;
-    }
     if (game.icon !== definition.imageFile && !getBuiltInGameImagePath(game.icon || "")) {
       game.icon = definition.imageFile;
       changed = true;
     }
-    if (definition.id === "endfield") {
-      if (!game.modFolderPath && legacyEndfieldOverrides.modFolderPath) {
-        game.modFolderPath = legacyEndfieldOverrides.modFolderPath;
-        changed = true;
-      }
-      if (!game.gamePath && legacyEndfieldOverrides.gamePath) {
-        game.gamePath = legacyEndfieldOverrides.gamePath;
-        changed = true;
-      }
-      if (!game.modLoaderPath && legacyEndfieldOverrides.modLoaderPath) {
-        game.modLoaderPath = legacyEndfieldOverrides.modLoaderPath;
-        changed = true;
-      }
-    }
     if (!game.modFolderPath) {
-      const info = readXxmiImporterPathInfo(game.modLoaderPath, game.id);
-      game.modFolderPath = info.importerPath ? path.join(info.importerPath, "Mods") : dataPaths.getDefaultModsPath(game.id);
+      game.modFolderPath = dataPaths.getDefaultModsPath(game.id);
       changed = true;
     }
     const defaultModsPath = dataPaths.getDefaultModsPath(game.id);
     if (systemPaths.isSameResolvedPath(game.modFolderPath, defaultModsPath)) fs.mkdirSync(defaultModsPath, { recursive: true });
-    const importer = dataPaths.IMPORTERS[game.id];
-    const managedRoot = configStore.currentConfig.managedXxmiRoot || path.join(dataPaths.getDataRoot(), "XXMI");
-    if (importer && !game.modLoaderPath && systemPaths.isSameResolvedPath(game.modFolderPath, path.join(managedRoot, importer, "Mods"))) {
-      const launcher = path.join(managedRoot, "Resources/Bin/XXMI Launcher.exe");
-      if (fs.existsSync(launcher)) {
-        game.modLoaderPath = launcher;
-        changed = true;
-      }
-    }
-  }
-  // Arknights-only manager: discard saved entries for other games instead of
-  // continuing to show dead game modules after an upgrade.
-  const allowedGameIds = new Set(gamesDefinitions.BUILTIN_GAMES.map(game => game.id));
-  const retainedGames = configStore.currentConfig.games.filter(game => allowedGameIds.has(game.id));
-  if (retainedGames.length !== configStore.currentConfig.games.length) {
-    configStore.currentConfig.games = retainedGames;
-    changed = true;
   }
   if (!configStore.currentConfig.games.length) {
     configStore.currentConfig.games.push(createBuiltInGameConfig(gamesDefinitions.BUILTIN_GAMES[0]));
@@ -192,8 +160,7 @@ function ensureBuiltInGamesConfigured() {
     visibleGames = [configStore.currentConfig.games[0]];
     changed = true;
   }
-  const validIds = new Set(visibleGames.map(game => game.id));
-  if (configStore.currentConfig.activeGameId !== "arknights" || !validIds.has("arknights")) {
+  if (configStore.currentConfig.activeGameId !== "arknights" || !visibleGames.some(game => game.id === "arknights")) {
     configStore.currentConfig.activeGameId = "arknights";
     changed = true;
   }
@@ -209,7 +176,7 @@ function serializeGameForRenderer(game) {
     description: game.description || definition?.description || "",
     shortName: game.shortName || definition?.shortName || game.name,
     marketGameId: game.marketGameId || definition?.marketGameId || game.id,
-    supportedLaunchModes: definition?.supportedLaunchModes || game.supportedLaunchModes || ["XXMI"],
+    supportedLaunchModes: definition?.supportedLaunchModes || game.supportedLaunchModes || ["ARKNIGHTS"],
     modLoaderLabel: definition?.modLoaderLabel || i18n.t("backend.games.settings.modLoader"),
     executableHint: definition?.executableHint || i18n.t("backend.games.settings.gameExecutable"),
     coverUrl: getImageDataUrl(iconPath)
@@ -218,12 +185,11 @@ function serializeGameForRenderer(game) {
 function getResolvedGamePaths(gameId2 = getActiveGameScopeId()) {
   const targetGame = getGameById(gameId2);
   if (targetGame) {
-    const allowLegacyFallback = targetGame.id === "endfield";
     return {
       activeGame: targetGame,
-      modsPath: targetGame.modFolderPath || (allowLegacyFallback ? configStore.currentConfig.modsPath || "" : ""),
-      gamePath: targetGame.gamePath || (allowLegacyFallback ? configStore.currentConfig.gamePath || "" : ""),
-      modLoaderPath: targetGame.modLoaderPath || (allowLegacyFallback ? configStore.currentConfig.xxmiPath || configStore.currentConfig.efmiPath || configStore.currentConfig.loaderPath || "" : "")
+      modsPath: targetGame.modFolderPath || "",
+      gamePath: targetGame.gamePath || "",
+      modLoaderPath: ""
     };
   }
   const activeGame = getActiveGame();
@@ -237,9 +203,9 @@ function getResolvedGamePaths(gameId2 = getActiveGameScopeId()) {
   }
   return {
     activeGame,
-    modsPath: configStore.currentConfig.modsPath || "",
-    gamePath: configStore.currentConfig.gamePath || "",
-    modLoaderPath: configStore.currentConfig.xxmiPath || configStore.currentConfig.efmiPath || configStore.currentConfig.loaderPath || ""
+    modsPath: activeGame?.modFolderPath || "",
+    gamePath: activeGame?.gamePath || "",
+    modLoaderPath: ""
   };
 }
 function getSettingsGame(gameId) {
@@ -254,68 +220,17 @@ function updateActiveGameConfig(updates, gameId) {
     Object.entries(updates || {}).forEach(([key, value]) => {
       activeGame[key] = value;
     });
-    if (activeGame.id === "endfield") {
-      if (updates.modFolderPath !== void 0) configStore.currentConfig.modsPath = updates.modFolderPath;
-      if (updates.gamePath !== void 0) configStore.currentConfig.gamePath = updates.gamePath;
-      if (updates.modLoaderPath !== void 0) {
-        configStore.currentConfig.xxmiPath = updates.modLoaderPath;
-        configStore.currentConfig.efmiPath = updates.modLoaderPath;
-        configStore.currentConfig.loaderPath = updates.modLoaderPath;
-      }
-    }
     configStore.saveConfig(configStore.currentConfig);
     notifyGamesChanged();
     return activeGame;
   }
-  if (updates.modFolderPath !== void 0) configStore.currentConfig.modsPath = updates.modFolderPath;
-  if (updates.gamePath !== void 0) configStore.currentConfig.gamePath = updates.gamePath;
-  if (updates.modLoaderPath !== void 0) {
-    configStore.currentConfig.xxmiPath = updates.modLoaderPath;
-    configStore.currentConfig.efmiPath = updates.modLoaderPath;
-    configStore.currentConfig.loaderPath = updates.modLoaderPath;
-  }
-  configStore.saveConfig(configStore.currentConfig);
-  notifyGamesChanged();
   return null;
-}
-const KNOWN_IMPORTER_MODS_DIRS = ["WWMI", "SRMI", "ZZMI", "EFMI", "GIMI", "NEMI", "XXMI"];
-function normalizeResolvedPathKey(targetPath) {
-  const resolved = path.resolve(targetPath || "");
-  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
 }
 function isExistingDirectory(targetPath) {
   try {
     return !!targetPath && fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory();
   } catch (_) {
     return false;
-  }
-}
-function isModsFolderName(folderName) {
-  return String(folderName || "").toLowerCase() === "mods";
-}
-function getPreferredImporterNamesForGame(gameId2 = getActiveGameScopeId()) {
-  const definition = getBuiltInGameDefinition(gameId2);
-  const preferred = [];
-  const add = name => {
-    if (!name || !KNOWN_IMPORTER_MODS_DIRS.includes(name) || preferred.includes(name)) return;
-    preferred.push(name);
-  };
-  add(definition?.defaultLaunchMode);
-  (definition?.supportedLaunchModes || []).forEach(add);
-  KNOWN_IMPORTER_MODS_DIRS.forEach(add);
-  return preferred;
-}
-function addModsFolderCandidate(candidates, candidatePath, rank, label) {
-  if (!isExistingDirectory(candidatePath) || !isModsFolderName(path.basename(candidatePath))) return;
-  const resolvedPath = path.resolve(candidatePath);
-  const key = normalizeResolvedPathKey(resolvedPath);
-  const existing = candidates.get(key);
-  if (!existing || rank < existing.rank) {
-    candidates.set(key, {
-      path: resolvedPath,
-      rank,
-      label
-    });
   }
 }
 function resolveSelectedModsFolder(selectedPath, {
@@ -328,165 +243,33 @@ function resolveSelectedModsFolder(selectedPath, {
     };
   }
   const basePath = path.resolve(selectedPath);
-  if (gameId2 === "arknights") {
+  if (gameId2 === "arknights" || getBuiltInGameDefinition(gameId2)) {
     try {
       require("./arknights/service.cjs").validateLibrary(basePath);
       return { ok: true, path: basePath, modsPath: basePath, originalPath: basePath, adjusted: false };
-    } catch (error) { return { ok: false, error: error.message }; }
-  }
-  const candidates = new Map();
-  let current = basePath;
-  for (let depth = 0; depth < 6; depth++) {
-    addModsFolderCandidate(candidates, current, depth, depth === 0 ? i18n.t("backend.games.settings.currentFolder") : i18n.t("backend.games.settings.parentModsFolder"));
-    const parent2 = path.dirname(current);
-    if (!parent2 || parent2 === current) break;
-    current = parent2;
-  }
-  addModsFolderCandidate(candidates, path.join(basePath, "Mods"), 20, i18n.t("backend.games.settings.childModsFolder"));
-  const preferredImporters = getPreferredImporterNamesForGame(gameId2);
-  preferredImporters.forEach((importerName, index) => {
-    const rank = index === 0 ? 30 : 40 + index;
-    addModsFolderCandidate(candidates, path.join(basePath, importerName, "Mods"), rank, i18n.t("backend.games.settings.importerModsFolder", {
-      importerName
-    }));
-  });
-  try {
-    const entries = fs.readdirSync(basePath, {
-      withFileTypes: true
-    });
-    entries.filter(entry => entry.isDirectory()).forEach(entry => {
-      const importerIndex = preferredImporters.indexOf(entry.name);
-      const rank = importerIndex >= 0 ? 40 + importerIndex : 80;
-      addModsFolderCandidate(candidates, path.join(basePath, entry.name, "Mods"), rank, i18n.t("backend.games.settings.importerModsFolder", {
-        importerName: entry.name
-      }));
-      preferredImporters.forEach((importerName, index) => {
-        addModsFolderCandidate(candidates, path.join(basePath, entry.name, importerName, "Mods"), 120 + index, i18n.t("backend.games.settings.nestedImporterModsFolder", {
-          name: entry.name,
-          importerName
-        }));
-      });
-    });
-  } catch (_) {}
-  let parent = path.dirname(basePath);
-  for (let level = 0; level < 2; level++) {
-    if (!parent || parent === basePath) break;
-    addModsFolderCandidate(candidates, path.join(parent, "Mods"), 90 + level * 20, i18n.t("backend.games.settings.siblingModsFolder"));
-    preferredImporters.forEach((importerName, index) => {
-      addModsFolderCandidate(candidates, path.join(parent, importerName, "Mods"), 100 + level * 20 + index, i18n.t("backend.games.settings.importerModsFolder", {
-        importerName
-      }));
-    });
-    const nextParent = path.dirname(parent);
-    if (!nextParent || nextParent === parent) break;
-    parent = nextParent;
-  }
-  const sortedCandidates = Array.from(candidates.values()).sort((left, right) => {
-    if (left.rank !== right.rank) return left.rank - right.rank;
-    return left.path.length - right.path.length;
-  });
-  if (sortedCandidates.length === 0) {
-    return {
-      ok: false,
-      error: i18n.t("backend.games.settings.modsFolderNotFound")
-    };
-  }
-  const best = sortedCandidates[0];
-  const tied = sortedCandidates.filter(candidate => candidate.rank === best.rank);
-  if (tied.length > 1) {
-    return {
-      ok: false,
-      error: i18n.t("backend.games.settings.ambiguousModsFolders"),
-      candidates: tied.map(candidate => candidate.path)
-    };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
   }
   return {
     ok: true,
-    path: best.path,
-    modsPath: best.path,
+    path: basePath,
+    modsPath: basePath,
     originalPath: basePath,
-    adjusted: !systemPaths.isSameResolvedPath(best.path, basePath),
-    label: best.label
+    adjusted: false
   };
 }
 function shouldResolveFolderSelectionAsMods(title, options = {}) {
   if (options?.modsFolder) return true;
   return /\bmods\b/i.test(String(title || ""));
 }
-function readXxmiImporterPathInfo(modLoaderPath, gameId2) {
-  const importerName = getBuiltInGameDefinition(gameId2)?.defaultLaunchMode || "";
-  const supported = installPaths.BUNDLED_GAME_IMPORTERS.includes(importerName);
-  if (!supported) {
-    return {
-      supported: false,
-      importerName,
-      status: "unsupported",
-      importerPath: ""
-    };
-  }
-  const xxmiRootDir = installPaths.resolveXxmiRootFromLauncherPath(modLoaderPath);
-  if (!xxmiRootDir) {
-    return {
-      supported: true,
-      importerName,
-      status: "launcher-path-invalid",
-      importerPath: ""
-    };
-  }
-  const configPath = path.join(xxmiRootDir, "XXMI Launcher Config.json");
-  if (!fs.existsSync(configPath)) {
-    return {
-      supported: true,
-      importerName,
-      status: "config-missing",
-      xxmiRootDir,
-      configPath,
-      importerPath: ""
-    };
-  }
-  try {
-    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    const configuredPath = String(config?.Importers?.[importerName]?.Importer?.importer_folder || "").trim();
-    if (!configuredPath) {
-      return {
-        supported: true,
-        importerName,
-        status: "importer-unconfigured",
-        xxmiRootDir,
-        configPath,
-        importerPath: ""
-      };
-    }
-    return {
-      supported: true,
-      importerName,
-      status: "configured",
-      xxmiRootDir,
-      configPath,
-      gameFolder: String(config?.Importers?.[importerName]?.Importer?.game_folder || "").trim(),
-      importerPath: path.resolve(xxmiRootDir, configuredPath)
-    };
-  } catch (error) {
-    coreLogger.logger.warn(`Failed to read XXMI importer path from ${configPath}:`, error?.message || error);
-    return {
-      supported: true,
-      importerName,
-      status: "config-invalid",
-      xxmiRootDir,
-      configPath,
-      importerPath: ""
-    };
-  }
-}
 function buildRendererConfig() {
   ensureBuiltInGamesConfigured();
   const {
     activeGame,
     modsPath,
-    gamePath,
-    modLoaderPath
+    gamePath
   } = getResolvedActiveGamePaths();
-  const xxmiImporterInfo = readXxmiImporterPathInfo(modLoaderPath, activeGame?.id);
   return {
     ...configStore.currentConfig,
     randomLaunch: getRandomLaunchSettings(configStore.currentConfig),
@@ -495,16 +278,14 @@ function buildRendererConfig() {
     activeGame: activeGame ? serializeGameForRenderer(activeGame) : null,
     modsPath,
     gamePath,
-    xxmiPath: modLoaderPath,
-    modLoaderPath,
-    xxmiImporterInfo,
     games: (configStore.currentConfig.games || []).map(serializeGameForRenderer)
   };
 }
 function notifyGamesChanged() {
+  const activeGame = getActiveGame();
   const payload = {
     activeGameId: configStore.currentConfig.activeGameId,
-    activeGame: getActiveGame() ? serializeGameForRenderer(getActiveGame()) : null,
+    activeGame: activeGame ? serializeGameForRenderer(activeGame) : null,
     games: (configStore.currentConfig.games || []).map(serializeGameForRenderer)
   };
   electron.BrowserWindow.getAllWindows().forEach(window => {
@@ -531,11 +312,7 @@ function getActiveGameScopeId() {
   return getActiveGame()?.id || configStore.currentConfig.activeGameId || "arknights";
 }
 function normalizeMarketGameId(gameId2) {
-  const normalized = String(gameId2 || "").trim();
-  if (!normalized) {
-    return "arknights";
-  }
-  return normalized;
+  return String(gameId2 || "").trim() || "arknights";
 }
 function getMarketGameId(gameId2 = getActiveGameScopeId()) {
   const normalizedGameId = normalizeMarketGameId(gameId2);
@@ -544,9 +321,6 @@ function getMarketGameId(gameId2 = getActiveGameScopeId()) {
 }
 function getModCachePath(gameId2 = getActiveGameScopeId()) {
   const marketGameId = normalizeMarketGameId(getMarketGameId(gameId2));
-  if (marketGameId === "endfield") {
-    return marketSettings.LEGACY_MOD_CACHE_PATH;
-  }
   return path.join(electron.app.getPath("userData"), `mod-market-cache-${marketGameId}.json`);
 }
 const CACHE_SCHEMA_VERSION = 5;
@@ -567,9 +341,6 @@ function getScopedCharacterOrder() {
   if (Array.isArray(configStore.currentConfig.characterOrdersByGame?.[gameId2])) {
     return configStore.currentConfig.characterOrdersByGame[gameId2];
   }
-  if (gameId2 === "endfield" && Array.isArray(configStore.currentConfig.characterOrder)) {
-    return configStore.currentConfig.characterOrder;
-  }
   return [];
 }
 function setScopedCharacterOrder(characterOrder) {
@@ -577,11 +348,11 @@ function setScopedCharacterOrder(characterOrder) {
   if (!configStore.currentConfig.characterOrdersByGame || typeof configStore.currentConfig.characterOrdersByGame !== "object") {
     configStore.currentConfig.characterOrdersByGame = {};
   }
+  const previous = configStore.currentConfig.characterOrdersByGame[gameId2];
   configStore.currentConfig.characterOrdersByGame[gameId2] = Array.isArray(characterOrder) ? characterOrder : [];
-  if (gameId2 === "endfield") {
-    configStore.currentConfig.characterOrder = configStore.currentConfig.characterOrdersByGame[gameId2];
-  }
-  configStore.saveConfig(configStore.currentConfig);
+  if (configStore.saveConfig(configStore.currentConfig)) return true;
+  if (previous === undefined) delete configStore.currentConfig.characterOrdersByGame[gameId2];else configStore.currentConfig.characterOrdersByGame[gameId2] = previous;
+  return false;
 }
 function getModsPath(gameId2 = getActiveGameScopeId()) {
   return getResolvedGamePaths(gameId2).modsPath || "";
@@ -674,7 +445,6 @@ module.exports = {
   isExistingDirectory,
   resolveSelectedModsFolder,
   shouldResolveFolderSelectionAsMods,
-  readXxmiImporterPathInfo,
   buildRendererConfig,
   notifyGamesChanged,
   getResolvedActiveGamePaths,

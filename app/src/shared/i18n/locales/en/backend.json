@@ -63,10 +63,6 @@
       "selectGameExecutable": "Select Game Executable ({{executableHint}})",
       "selectOfficialLauncher": "Select the official launcher",
       "selectExecutable": "Select {{modLoaderLabel}} Executable",
-      "selectEFMIQuickStartExe": "Select EFMI Quick Start.exe",
-      "selectNEMIStartCmdOr3DMigotoLoaderExe": "Select NEMI Start.cmd or 3DMigoto Loader.exe",
-      "selectXXMILauncherExe": "Select XXMI Launcher.exe",
-      "nEMILoader": "NEMI Loader",
       "chooseExecutable": "Choose an executable",
       "chooseFile": "Choose a file"
     },
@@ -147,40 +143,14 @@
     }
   },
   "install": {
-    "setup": {
-      "selectUpdatePackageOrExtractedFolder": "Select update package or extracted folder",
-      "zIPPackage": "ZIP package",
-      "invalidXXMIUpdateFolder": "Invalid XXMI update folder: {{sourcePath}}",
-      "copyingXXMIUpdateFolder": "Copying XXMI update folder...",
-      "extractingXXMIUpdatePackage": "Extracting XXMI update package...",
-      "updating": "Updating: {{displayName}}",
-      "xXMIUpdateComplete": "XXMI update complete!",
-      "updateXXMIFailed": "Update XXMI failed: {{reason}}",
-      "updateSourceNotFound": "Update source not found: {{sourcePath}}",
-      "gamePackageDirectoryNotFound": "Game package directory not found: {{packageDir}}",
-      "invalidGamePackageUpdateFolder": "Invalid game package update folder: {{sourcePath}}",
-      "copyingGamePackageUpdateFolder": "Copying game package update folder...",
-      "extractingGamePackageUpdate": "Extracting game package update...",
-      "gamePackageUpdateCompleteModsFolderPreserved": "Game package update complete! Mods folder preserved.",
-      "updateGamePackageFailed": "Update game package failed: {{reason}}",
-      "chooseFolder": "Choose a folder",
-      "chooseArchive": "Choose an archive",
-      "archiveFilter": "Archives",
-      "allFiles": "All files"
-    },
     "advice": {
       "mB": "{{progress}} MB",
       "kB": "{{progress}} KB",
       "b": "{{size}} B"
     },
-    "managed": {
-      "xxmiResourcesTitle": "XXMI Resources · {{root}}"
-    }
+    "managed": {}
   },
   "mods": {
-    "nevernessPaks": {
-      "pakModNotFound": "Pak Mod not found"
-    },
     "backups": {
       "unknownTime": "Unknown time"
     }
@@ -199,13 +169,8 @@
   "pawchive": {
     "invalidState": "Invalid state",
     "duplicateAuthor": "Duplicate author",
-    "invalidSnapshot": "Invalid snapshot"
-  },
-  "siteSessions": {
-    "invalidSections": "Invalid sections",
-    "invalidSiteLabel": "Site name is required and must be at most 80 characters",
-    "invalidSiteUrl": "Site URL must be a valid HTTPS address",
-    "customSiteMissing": "The custom site to delete was not found"
+    "invalidSnapshot": "Invalid snapshot",
+    "untitled": "Untitled"
   },
   "softwareUpdates": {
     "invalidUpdatePreferences": "Invalid update preferences"
@@ -240,12 +205,6 @@
   "common": {
     "none": "None",
     "notConfigured": "Not configured"
-  },
-  "modSites": {
-    "gamebananaLabel": "GameBanana",
-    "arcaLabel": "Arca",
-    "huiyueLabel": "Huiyue",
-    "kekeLabel": "Keke"
   },
   "validation": {
     "characterName": "Character name",

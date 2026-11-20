@@ -10,7 +10,8 @@
     "retryDownload": "重试",
     "retryInstall": "重试安装",
     "openManager": "查看 Mod",
-    "importToCurrentGame": "导入到当前游戏"
+    "importToCurrentGame": "导入到当前游戏",
+    "reimport": "再次导入"
   },
   "status": {
     "waiting": "等待中",
@@ -28,7 +29,8 @@
     "nameConflictResolved": "有同名 Mod，已安装为「{{modName}}」",
     "fileProgress": "{{filesCompleted}} / {{filesTotal}} 个文件",
     "resolvingMega": "解析 MEGA 链接…",
-    "preparingImport": "准备导入…"
+    "preparingImport": "准备导入…",
+    "imported": "已导入"
   },
   "modules": {
     "extract": "解压模块"
@@ -61,10 +63,6 @@
     "archiveKept": "压缩包已保留"
   },
   "sources": {
-    "gamebanana": "香蕉网",
-    "arca": "韩网 · Arca",
-    "hui": "辉站",
-    "cocoa": "可可站",
     "title": "下载来源"
   },
   "post": {
@@ -215,20 +213,5 @@
     "emptyHint": "稍后刷新，或去网站看看",
     "discoverAuthors": "发现作者",
     "pageNumber": "第 {{count}} 页{{status}}"
-  },
-  "siteManager": {
-    "title": "站点管理",
-    "description": "添加常用的明日方舟 Mod 站点，或删除自己创建的站点。",
-    "builtIn": "内置",
-    "delete": "删除",
-    "deleting": "删除中…",
-    "addTitle": "新建站点",
-    "name": "站点名称",
-    "namePlaceholder": "例如：明日方舟 Mod 站",
-    "url": "站点地址（HTTPS）",
-    "add": "新建站点",
-    "createFailed": "新建站点失败",
-    "deleteFailed": "删除站点失败",
-    "manage": "管理站点"
   }
 }

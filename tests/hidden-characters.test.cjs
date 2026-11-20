@@ -16,14 +16,14 @@ function fixture(t) {
 test('hidden characters persist independently by game and restore without affecting other entries', () => {
   let saved;
   const store = () => createHiddenCharactersStore({ read: () => saved && JSON.parse(saved), write: next => { saved = JSON.stringify(next); } });
-  store().set('wuwa', 'Encore', true);
-  store().set('wuwa', 'Jinhsi', true);
-  assert.equal(store().has('wuwa', 'encore'), true);
-  assert.equal(store().has('zzz', 'Encore'), false);
-  store().set('wuwa', 'ENCORE', true);
-  assert.equal(store().list('wuwa').length, 2);
-  store().set('wuwa', 'Encore', false);
-  assert.deepEqual(store().list('wuwa'), ['Jinhsi']);
+  store().set('arknights', '阿米娅', true);
+  store().set('arknights', '陈', true);
+  assert.equal(store().has('arknights', '阿米娅'), true);
+  assert.equal(store().has('other-game', '阿米娅'), false);
+  store().set('arknights', '阿米娅', true);
+  assert.equal(store().list('arknights').length, 2);
+  store().set('arknights', '阿米娅', false);
+  assert.deepEqual(store().list('arknights'), ['陈']);
 });
 test('hiding disables all planned Mods before persisting and preserves their bytes', t => {
   const { plan } = fixture(t);

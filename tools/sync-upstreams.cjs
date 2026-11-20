@@ -1,6 +1,5 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
 const { createAppClient } = require('./github-app-client.cjs');
 const { verifyDownstream } = require('./verify-downstream.cjs');
 const { owner, forks } = require('./upstream-repositories.json');
@@ -42,13 +41,6 @@ async function syncUpstreams({ client } = {}) {
     const previous = git(directory, ['rev-parse', 'HEAD']).stdout;
     const changed = mergeUpstream(git, directory, 'upstream/' + item.branch, changed => {
       verifyDownstream(directory, item.name);
-      if (changed && ['XXMI-Libs-Package', 'EFMI-Package'].includes(item.name)) {
-        const env = { ...process.env };
-        delete env.QAQR_GITHUB_APP_PRIVATE_KEY;
-        console.log('Validating repaired native paths before pushing ' + item.name);
-        const validation = spawnSync(process.execPath, [path.join(directory, 'qaqr/build.cjs'), '--verify-only'], { cwd: directory, env, stdio: 'inherit', windowsHide: true });
-        if (validation.error || validation.status) throw validation.error || Error('Native fork validation failed; no upstream sync was pushed');
-      }
     });
     const revision = git(directory, ['rev-parse', 'HEAD']).stdout;
     if (changed) {

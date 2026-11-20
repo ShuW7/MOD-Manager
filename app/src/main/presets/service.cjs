@@ -20,10 +20,8 @@ const charactersHidden = require("../characters/hidden.cjs");
 const configStore = require("../config/store.cjs");
 const coreLogger = require("../core/logger.cjs");
 const gamesEnvironment = require("../games/environment.cjs");
-const gamesNevernessLoader = require("../games/neverness/loader.cjs");
 const gamesSettings = require("../games/settings.cjs");
 const modsConflicts = require("../mods/conflicts.cjs");
-const modsNevernessPaks = require("../games/neverness/paks.cjs");
 const overlayWindow = require("../overlay/window.cjs");
 const persistService = require("../persist/service.cjs");
 const persistTracking = require("../persist/tracking.cjs");
@@ -79,26 +77,6 @@ function normalizePresetMods(mods, gameId2 = gamesSettings.getActiveGameScopeId(
 }
 function snapshotEnabledPresetMods(gameId2 = gamesSettings.getActiveGameScopeId()) {
   const presetMods = [];
-  if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-    const paths = gamesNevernessLoader.ensureNevernessDx12GamePaths();
-    const modsPath2 = paths.pakModsDir;
-    if (!modsPath2 || !fs.existsSync(modsPath2)) return [];
-    const characterEntries2 = charactersDirectories.listCharacterDirectories(modsPath2, gameId2);
-    for (const entry of characterEntries2) {
-      const result = modsNevernessPaks.getNevernessDx12Mods(entry.displayName);
-      if (!result?.success || !Array.isArray(result.mods)) continue;
-      for (const mod of result.mods) {
-        if (mod.enabled) {
-          presetMods.push({
-            characterName: entry.displayName,
-            modName: mod.name,
-            enabled: true
-          });
-        }
-      }
-    }
-    return presetMods;
-  }
   const modsPath = gamesSettings.getModsPath(gameId2);
   if (!modsPath || !fs.existsSync(modsPath)) return [];
   const characterEntries = charactersDirectories.listCharacterDirectories(modsPath, gameId2);
@@ -135,45 +113,6 @@ async function applyPresetModsForGame(preset, gameId2 = gamesSettings.getActiveG
     missing: 0,
     errors: []
   };
-  if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-    const paths = gamesNevernessLoader.ensureNevernessDx12GamePaths();
-    const modsPath2 = paths.pakModsDir;
-    if (!modsPath2 || !fs.existsSync(modsPath2)) {
-      return {
-        error: i18n.t("backend.presets.service.nevernessPakDirectoryMissing")
-      };
-    }
-    const characterEntries2 = charactersDirectories.listCharacterDirectories(modsPath2, gameId2);
-    for (const entry of characterEntries2) {
-      const current = modsNevernessPaks.getNevernessDx12Mods(entry.displayName);
-      if (!current?.success || !Array.isArray(current.mods)) continue;
-      for (const mod of current.mods) {
-        const key = `${entry.displayName}/${mod.name}`;
-        const shouldEnable = enableSet.has(key);
-        if (!!mod.enabled === shouldEnable) continue;
-        const toggleResult = modsNevernessPaks.toggleNevernessDx12PakMod(entry.displayName, mod.name, shouldEnable);
-        if (toggleResult?.success) {
-          if (shouldEnable) results.enabled += 1;else results.disabled += 1;
-        } else {
-          results.errors.push(`${key}: ${toggleResult?.error || i18n.t("backend.overlay.window.pakToggleFailed")}`);
-        }
-      }
-    }
-    for (const mod of normalizePresetMods(preset.mods, gameId2)) {
-      if (mod.enabled === false) continue;
-      const found = characterEntries2.some(entry => {
-        if (entry.displayName !== mod.characterName) return false;
-        const current = modsNevernessPaks.getNevernessDx12Mods(entry.displayName);
-        return current?.success && current.mods?.some(item => item.name === mod.modName);
-      });
-      if (!found) results.missing += 1;
-    }
-    modsConflicts.clearConflictCache();
-    return {
-      success: true,
-      results
-    };
-  }
   const modsPath = gamesSettings.getModsPath(gameId2);
   const env = gamesEnvironment.resolveActiveGameEnvRoot(gameId2);
   if (!modsPath || !fs.existsSync(modsPath)) {
@@ -245,8 +184,11 @@ async function applyPresetModsForGame(preset, gameId2 = gamesSettings.getActiveG
       results.missing++;
     }
   }
+  const hasErrors = results.errors.length > 0;
   return {
-    success: true,
+    success: !hasErrors,
+    partial: hasErrors && (results.enabled || 0) + (results.disabled || 0) > 0,
+    error: hasErrors ? results.errors[0] : void 0,
     results
   };
 }
@@ -302,7 +244,7 @@ function loadPresetStore() {
       }
       return {
         presetsByGame: {
-          endfield: normalizePresetScope(parsed)
+          arknights: normalizePresetScope(parsed)
         }
       };
     }
@@ -323,7 +265,7 @@ function savePresetStore(store) {
 function tryLoadLegacyPresetScope(gameId2 = gamesSettings.getActiveGameScopeId()) {
   try {
     const targetGame = (configStore.currentConfig.games || []).find(game => game.id === gameId2);
-    const modsPath = targetGame?.modFolderPath || (gameId2 === "endfield" ? configStore.currentConfig.modsPath || "" : "");
+    const modsPath = targetGame?.modFolderPath || "";
     if (!modsPath) return null;
     const legacyPath = path.join(path.dirname(modsPath), "presets.json");
     if (!legacyPath || legacyPath === PRESETS_PATH || !fs.existsSync(legacyPath)) return null;
@@ -507,7 +449,15 @@ function registerIpc() {
       };
       const applyResult = await applyPresetModsForGame(preset, gameId2);
       if (!applyResult?.success) {
+        // A partial apply must not be marked as the active preset, but the
+        // windows still need to refresh because some Mod folders changed.
+        if (applyResult?.results) notifyPresetApplicationChanged(gameId2);
         return {
+          success: false,
+          partial: !!applyResult?.partial,
+          ...(applyResult?.results ? {
+            results: applyResult.results
+          } : {}),
           error: applyResult?.error || i18n.t("backend.overlay.window.presetApplyFailed")
         };
       }

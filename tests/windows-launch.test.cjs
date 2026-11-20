@@ -3,21 +3,15 @@ const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const { createWindowsLauncher, getDirectLaunchMode, quoteWindowsArgument, buildElevationScript } = require('../app/src/main/system/launch.cjs');
 
-test('direct launch selects the correct importer instead of the saved launcher UI mode', () => {
-  for (const [id, expected] of Object.entries({ 'genshin-impact': 'GIMI', endfield: 'EFMI', 'wuthering-waves': 'WWMI', zzz: 'ZZMI', 'honkai-star-rail': 'SRMI' })) {
-    assert.equal(getDirectLaunchMode({ id, launchMode: 'XXMI' }), expected);
-    assert.equal(getDirectLaunchMode({ id, launchMode: null }), expected);
-  }
-  assert.equal(getDirectLaunchMode({ id: 'neverness-to-everness', launchMode: 'DX12' }), 'DX12');
-  assert.equal(getDirectLaunchMode({ id: 'neverness-to-everness', launchMode: 'NEMI' }), 'NEMI');
-  assert.equal(getDirectLaunchMode({ id: 'wuthering-waves', wuwaDx12Enabled: true }), 'WWMI-DX12');
-  assert.equal(getDirectLaunchMode({ id: 'genshin-impact', wuwaDx12Enabled: true }), 'GIMI');
+test('direct launch selects the Arknights loader instead of the saved launcher UI mode', () => {
+  assert.equal(getDirectLaunchMode({ id: 'arknights', launchMode: 'OFFICIAL' }), 'ARKNIGHTS');
+  assert.equal(getDirectLaunchMode({ id: 'arknights', launchMode: null }), 'ARKNIGHTS');
   assert.equal(getDirectLaunchMode({ id: 'unknown' }), null);
 });
 test('elevated launch inherits the parent token without requesting RunAs again', async () => {
   let invocation, detached = false;
-  const exe = 'D:\\Games & Tools\\XXMI Launcher.exe';
-  const args = ['--nogui', '--xxmi', 'EFMI', 'with spaces', 'literal & %VALUE%'];
+  const exe = 'D:\\Games & Tools\\Game Launcher.exe';
+  const args = ['--nogui', '--game', 'ARKNIGHTS', 'with spaces', 'literal & %VALUE%'];
   const launcher = createWindowsLauncher({ platform: 'win32', isElevated: () => true,
     execFile: () => assert.fail('Unexpected RunAs'),
     spawn: (...received) => {
@@ -36,8 +30,8 @@ test('elevated launch inherits the parent token without requesting RunAs again',
 });
 test('non-elevated launch requests normal UAC once with quoted arguments', async () => {
   let calls = 0;
-  const exe = "D:\\Tester's Tools\\XXMI Launcher.exe", cwd = "D:\\Tester's Tools";
-  const args = ['--nogui', '--xxmi', 'WWMI', 'path with spaces\\', 'a"b'];
+  const exe = "D:\\Tester's Tools\\Game Launcher.exe", cwd = "D:\\Tester's Tools";
+  const args = ['--nogui', '--game', 'ARKNIGHTS', 'path with spaces\\', 'a"b'];
   const launcher = createWindowsLauncher({ platform: 'win32', isElevated: () => false,
     spawn: () => assert.fail('Unexpected non-elevated launch'),
     execFile: (file, params, options, callback) => {

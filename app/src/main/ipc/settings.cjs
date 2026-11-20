@@ -21,7 +21,7 @@ function registerIpc() {
     };
   });
   electron.ipcMain.handle("settings:update-random-launch", async (_, updates) => {
-    if (!updates || typeof updates !== "object" || Array.isArray(updates) || !Object.keys(updates).length || Object.entries(updates).some(([key, value]) => !["manager", "xxmi"].includes(key) || typeof value !== "boolean")) {
+    if (!updates || typeof updates !== "object" || Array.isArray(updates) || !Object.keys(updates).length || Object.entries(updates).some(([key, value]) => key !== "manager" || typeof value !== "boolean")) {
       return {
         success: false,
         error: i18n.t("backend.ipc.settings.invalidRandomLaunchSettings")
@@ -77,8 +77,8 @@ function registerIpc() {
       const exportData = {
         version: electron.app.getVersion(),
         exportedAt: new Date().toISOString(),
-        gameId: activeGame?.id || "endfield",
-        gameName: activeGame?.name || "明日方舟终末地",
+        gameId: activeGame?.id || "arknights",
+        gameName: activeGame?.name || "明日方舟",
         presets: presetsService.loadPresets()
       };
       fs.writeFileSync(result.filePath, JSON.stringify(exportData, null, 2));

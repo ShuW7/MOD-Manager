@@ -19,13 +19,9 @@ function collectConfiguredManagedPaths() {
     });
   }
   addEntry(i18n.t("backend.games.pathWarning.modsPathLabel"), configStore.currentConfig.modsPath, i18n.t("backend.games.pathWarning.legacyConfig"));
-  addEntry(i18n.t("backend.games.pathWarning.xxmiPathLabel"), configStore.currentConfig.xxmiPath, i18n.t("backend.games.pathWarning.legacyConfig"));
-  addEntry(i18n.t("backend.games.pathWarning.efmiPathLabel"), configStore.currentConfig.efmiPath, i18n.t("backend.games.pathWarning.legacyConfig"));
-  addEntry(i18n.t("backend.games.pathWarning.loaderPathLabel"), configStore.currentConfig.loaderPath, i18n.t("backend.games.pathWarning.legacyConfig"));
   for (const game of configStore.currentConfig.games || []) {
     const gameName = game?.name || game?.id || i18n.t("backend.games.pathWarning.gameConfig");
     addEntry(i18n.t("backend.games.pathWarning.modsPathLabel"), game?.modFolderPath, gameName);
-    addEntry(i18n.t("backend.games.pathWarning.xxmiPathLabel"), game?.modLoaderPath, gameName);
   }
   const seen = new Set();
   return entries.filter(entry => {

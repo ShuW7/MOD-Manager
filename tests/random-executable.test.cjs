@@ -29,7 +29,7 @@ test('random copies preserve exact bytes, use distinct names and leave original 
 });
 test('random launch preserves cwd and arguments, propagates cancellation and removes failed copies', async t => {
   const { source, directory } = fixture(t); let launched;
-  const args = ['--nogui', '--xxmi', 'GIMI', 'with spaces'];
+  const args = ['--nogui', '--game', 'ARKNIGHTS', 'with spaces'];
   const result = await launchRandomExecutable(source, directory, args, async (file, cwd, argv) => {
     launched = file; assert.notEqual(file, source); assert.equal(cwd, directory); assert.deepEqual(argv, args);
     return { success: false, error: 'UAC cancelled' };
@@ -56,9 +56,9 @@ test('manager handoff runs one random image, changes name again on a fresh launc
 });
 test('global opt-out reads the existing profile, recovers its backup, and returns an old random shortcut to the stable executable', t => {
   const { source, directory } = fixture(t);
-  fs.writeFileSync(path.join(directory, 'config.json.bak'), JSON.stringify({ randomLaunch: { manager: false, xxmi: true } }));
+  fs.writeFileSync(path.join(directory, 'config.json.bak'), JSON.stringify({ randomLaunch: { manager: false } }));
   fs.writeFileSync(path.join(directory, 'config.json'), '{broken');
-  assert.deepEqual(readRandomLaunchSettings(directory), { manager: false, xxmi: true });
+  assert.deepEqual(readRandomLaunchSettings(directory), { manager: false });
   const manifestPath = path.join(directory, 'package.json'); fs.writeFileSync(manifestPath, JSON.stringify({ main: './out/main/index.js' }));
   let requested;
   const app = { isPackaged: true, relaunch: value => { requested = value; }, exit: () => {} };
@@ -69,9 +69,9 @@ test('global opt-out reads the existing profile, recovers its backup, and return
   assert.equal(requested.execPath, source);
 });
 
-test('QAQ and XXMI copies randomize Windows display names without changing code, version or appended launcher data', t => {
+test('manager and launcher copies randomize Windows display names without changing code, version or appended launcher data', t => {
   const { source } = fixture(t);
-  for (const product of ['QAQ-Revival', 'XXMI Launcher']) {
+  for (const product of ['QAQ-Revival', 'Game Launcher']) {
     const resource = require('../tools/version-resource.cjs').versionResource(product, '1.2.3');
     const original = Buffer.alloc(2048 + 29, 0);
     original.write('MZ'); original.writeUInt32LE(128, 60); original.write('PE\0\0', 128);
@@ -84,7 +84,7 @@ test('QAQ and XXMI copies randomize Windows display names without changing code,
     }
     original.writeUInt32LE(0x1000 + 96, 584); original.writeUInt32LE(resource.length, 588);
     resource.copy(original, 608); original.write('launcher payload must survive', 2048);
-    if (product === 'XXMI Launcher') for (const field of executableNameFields(original)) {
+    if (product === 'Game Launcher') for (const field of executableNameFields(original)) {
       original.writeUInt16LE(original.readUInt16LE(field.header + 2) * 2, field.header + 2);
     }
     fs.writeFileSync(source, original);

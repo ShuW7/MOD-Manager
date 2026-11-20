@@ -125,19 +125,29 @@ function parseContentRangeTotal(value) {
   return Number.isFinite(total) ? total : 0;
 }
 const MARKET_DOWNLOAD_STALL_TIMEOUT_MS = 15 * 1e3;
-function readMarketDownloadChunk(reader, abortController2) {
+function readMarketDownloadChunk(reader, abortController2, control = null) {
   return new Promise((resolve, reject) => {
     let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      try {
-        abortController2.abort();
-      } catch (_) {}
-      const error = new Error(i18n.t("backend.market.downloads.transferStalled"));
-      error.code = "DOWNLOAD_STALLED";
-      reject(error);
-    }, MARKET_DOWNLOAD_STALL_TIMEOUT_MS);
+    let timer = null;
+    const armStallTimer = () => {
+      timer = setTimeout(() => {
+        if (settled) return;
+        // A paused transfer intentionally stops consuming data; do not count
+        // that as a stalled connection. Re-check after the next interval.
+        if (control?.paused) {
+          armStallTimer();
+          return;
+        }
+        settled = true;
+        try {
+          abortController2.abort();
+        } catch (_) {}
+        const error = new Error(i18n.t("backend.market.downloads.transferStalled"));
+        error.code = "DOWNLOAD_STALLED";
+        reject(error);
+      }, MARKET_DOWNLOAD_STALL_TIMEOUT_MS);
+    };
+    armStallTimer();
     reader.read().then(result => {
       if (settled) return;
       settled = true;
@@ -271,7 +281,7 @@ async function downloadMarketFile(event, taskId, download, control = null, fetch
       const {
         done,
         value
-      } = await reader.read();
+      } = await readMarketDownloadChunk(reader, abortController2, control);
       if (done) break;
       const chunk = Buffer.from(value);
       downloaded += chunk.length;
@@ -567,13 +577,7 @@ function registerIpc() {
     userData: electron.app.getPath("userData"),
     services: {
       pawchive: marketSources.pawchiveService,
-      kemono: marketSources.kemonoService,
-      ...Object.fromEntries(['gamebanana', 'arca', 'loverslab', 'huiyue', 'keke'].map(source => [source, {
-        getPost: ref => marketSources.modSiteContent.getPost({
-          ...ref,
-          source
-        })
-      }]))
+      kemono: marketSources.kemonoService
     },
     getCacheDir: marketSettings.ensureMarketDownloadCacheDir,
     openSource: () => {
@@ -587,7 +591,7 @@ function registerIpc() {
       try {
         return await downloadMarketFile({
           sender
-        }, task.taskId, task.download, control, ['gamebanana', 'arca', 'loverslab', 'huiyue', 'keke'].includes(task.source) ? (...args) => marketSources.siteSessions.fetch(task.source, ...args) : netQaqm.fetchWithElectronNet);
+        }, task.taskId, task.download, control, netQaqm.fetchWithElectronNet);
       } finally {
         marketDownloadControls.delete(task.taskId);
       }

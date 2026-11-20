@@ -10,16 +10,22 @@ import {
   check,
 } from "./SettingsControls.jsx";
 const UNKNOWN = "__unlinked__";
+const PERSIST_TARGET_TTL_MS = 60 * 1e3;
 function openPersistManager(gameId, characterName, modName) {
-  sessionStorage.setItem(
-    "qaqm.persist.target",
-    JSON.stringify({
-      gameId,
-      characterName,
-      modName,
-    }),
-  );
-  localStorage.setItem("qaqm.settings.category.v2", "game");
+  try {
+    sessionStorage.setItem(
+      "qaqm.persist.target",
+      JSON.stringify({
+        gameId,
+        characterName,
+        modName,
+        createdAt: Date.now(),
+      }),
+    );
+  } catch {}
+  try {
+    localStorage.setItem("qaqm.settings.category.v2", "game");
+  } catch {}
   window.dispatchEvent(
     new CustomEvent("qaqm:settings-section", {
       detail: {
@@ -43,7 +49,18 @@ function initialLocation(gameId) {
   try {
     const saved = sessionStorage.getItem("qaqm.persist.target");
     sessionStorage.removeItem("qaqm.persist.target");
-    return saved ? JSON.parse(saved) : {};
+    if (!saved) return {};
+    const parsed = JSON.parse(saved);
+    const createdAt = Number(parsed?.createdAt || 0);
+    if (createdAt > 0 && Date.now() - createdAt > PERSIST_TARGET_TTL_MS)
+      return {};
+    return {
+      ...(parsed?.gameId ? { gameId: parsed.gameId } : {}),
+      ...(parsed?.characterName
+        ? { characterName: parsed.characterName }
+        : {}),
+      ...(parsed?.modName ? { modName: parsed.modName } : {}),
+    };
   } catch {
     return {};
   }

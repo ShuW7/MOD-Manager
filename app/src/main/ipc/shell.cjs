@@ -6,9 +6,7 @@ const path = require("path");
 const fs = require("fs");
 const charactersDirectories = require("../characters/directories.cjs");
 const charactersOrganization = require("../characters/organization.cjs");
-const gamesNevernessLoader = require("../games/neverness/loader.cjs");
 const gamesSettings = require("../games/settings.cjs");
-const modsNevernessPaks = require("../games/neverness/paks.cjs");
 function registerIpc() {
   electron.ipcMain.handle("open-path-in-explorer", async (_, targetPath) => {
     try {
@@ -51,9 +49,7 @@ function registerIpc() {
   electron.ipcMain.handle("open-character-folder", async (_, characterName) => {
     try {
       const gameId2 = gamesSettings.getActiveGameScopeId();
-      const charPath = gamesNevernessLoader.isNevernessDx12Mode(gameId2) ? modsNevernessPaks.getNevernessDx12CharacterPath(characterName, {
-        ensure: true
-      }) : charactersDirectories.resolveCharacterPath(characterName, gameId2);
+      const charPath = charactersDirectories.resolveCharacterPath(characterName, gameId2);
       if (charPath && fs.existsSync(charPath)) {
         const openError = await electron.shell.openPath(charPath);
         if (openError) {
@@ -81,29 +77,6 @@ function registerIpc() {
   }) => {
     try {
       const gameId2 = gamesSettings.getActiveGameScopeId();
-      if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-        const charPath2 = modsNevernessPaks.getNevernessDx12CharacterPath(characterName, {
-          ensure: true
-        });
-        if (!charPath2) return {
-          error: i18n.t("backend.imports.local.characterFolderNotFound")
-        };
-        const paths = gamesNevernessLoader.getNevernessDx12Paths();
-        const disabledCharPath = modsNevernessPaks.getNevernessDx12DisabledCharacterPath(characterName, paths);
-        const candidates = [path.join(charPath2, modName), path.join(charPath2, `DISABLED_${modName}`), disabledCharPath ? path.join(disabledCharPath, modName) : "", disabledCharPath ? path.join(disabledCharPath, `DISABLED_${modName}`) : ""].filter(Boolean);
-        const modPath2 = candidates.find(candidate => fs.existsSync(candidate));
-        if (!modPath2) return {
-          error: i18n.t("backend.ipc.mods.modFolderNotFound")
-        };
-        const openError = await electron.shell.openPath(modPath2);
-        if (openError) return {
-          error: openError
-        };
-        charactersDirectories.trackCharacterUsage(characterName, gameId2);
-        return {
-          success: true
-        };
-      }
       charactersOrganization.organizeLegacyCharacterFoldersIfNeeded(gameId2);
       const charPath = charactersDirectories.resolveCharacterPath(characterName, gameId2);
       if (!charPath) {

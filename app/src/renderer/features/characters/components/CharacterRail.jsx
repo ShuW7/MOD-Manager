@@ -1,6 +1,8 @@
 import { t } from "../../../../shared/i18n/index.mjs";
 import React from "react";
 import { Icon } from "../../../components/Icon.jsx";
+import { RecoverableImage } from "../../../components/RecoverableImage.jsx";
+import { isOperatorCharacter } from "../../../lib/navigation.js";
 import {
   normalizeSearchValue,
   readCharacterPinnedSet,
@@ -44,7 +46,14 @@ function matchesQuery(character, query) {
 }
 
 // Stays beside the Mod list so moving between characters never leaves the workspace.
-function CharacterRail({ gameId, cache, onCacheChange, selected, onSelect, onBack }) {
+function CharacterRail({
+  gameId,
+  cache,
+  onCacheChange,
+  selected,
+  onSelect,
+  onBack,
+}) {
   const [collapsed, setCollapsed] = React.useState(readCollapsed);
   const [query, setQuery] = React.useState("");
   const [, setPinyinLoaded] = React.useState(!!pinyin);
@@ -60,21 +69,26 @@ function CharacterRail({ gameId, cache, onCacheChange, selected, onSelect, onBac
   React.useEffect(() => {
     if (!stale) return void 0;
     let current = true;
-    const timer = setTimeout(async () => {
-      try {
-        const result = await window.api.getCharacters();
-        if (!current || !result?.success) return;
-        const next = Array.isArray(result.characters) ? result.characters : [];
-        onCacheChange?.({
-          ...cache,
-          characters: next,
-          characterCovers: coversFrom(next),
-          missingPath: false,
-          loadError: "",
-          needsRefresh: false,
-        });
-      } catch {}
-    }, cache ? 400 : 0);
+    const timer = setTimeout(
+      async () => {
+        try {
+          const result = await window.api.getCharacters();
+          if (!current || !result?.success) return;
+          const next = Array.isArray(result.characters)
+            ? result.characters
+            : [];
+          onCacheChange?.({
+            ...cache,
+            characters: next,
+            characterCovers: coversFrom(next),
+            missingPath: false,
+            loadError: "",
+            needsRefresh: false,
+          });
+        } catch {}
+      },
+      cache ? 400 : 0,
+    );
     return () => {
       current = false;
       clearTimeout(timer);
@@ -83,9 +97,10 @@ function CharacterRail({ gameId, cache, onCacheChange, selected, onSelect, onBac
   const pinned = React.useMemo(() => readCharacterPinnedSet(gameId), [gameId]);
   const normalizedQuery = normalizeSearchValue(query);
   const rows = React.useMemo(() => {
+    const operators = characters.filter(isOperatorCharacter);
     if (normalizedQuery)
-      return characters.filter((item) => matchesQuery(item, normalizedQuery));
-    const visible = characters.filter(
+      return operators.filter((item) => matchesQuery(item, normalizedQuery));
+    const visible = operators.filter(
       (item) => Number(item?.modCount || 0) > 0 || item?.name === selected,
     );
     // Order stays stable while Mods are toggled, so a row never jumps away from the pointer.
@@ -177,17 +192,17 @@ function CharacterRail({ gameId, cache, onCacheChange, selected, onSelect, onBac
               key={name}
             >
               <span className="character-rail-avatar">
-                {covers[name] ? (
-                  <img src={covers[name]} alt="" draggable={false} loading="lazy" />
-                ) : (
-                  name.charAt(0).toUpperCase()
-                )}
+                <RecoverableImage
+                  src={covers[name] || character.coverUrl}
+                  alt=""
+                  draggable={false}
+                  loading="lazy"
+                  fallback={name.charAt(0).toUpperCase()}
+                />
               </span>
               <span className="character-rail-name">{name}</span>
               <span className="character-rail-count">
-                {enabled > 0 ? (
-                  <strong>{enabled}</strong>
-                ) : null}
+                {enabled > 0 ? <strong>{enabled}</strong> : null}
                 {enabled > 0 ? "/" : ""}
                 {character.modCount || 0}
               </span>

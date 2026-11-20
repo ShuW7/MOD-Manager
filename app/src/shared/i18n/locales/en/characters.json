@@ -21,7 +21,9 @@
     "moreTitle": "More import options",
     "uiTarget": "UI resources",
     "characterTarget": "Characters",
-    "unmatchedGroup": "Unmatched (defaults to UI resources)"
+    "unmatchedGroup": "Unmatched (defaults to UI resources)",
+    "decryptFailed": "Could not analyze the imported files: {{error}}",
+    "installFailed": "Could not import the Mods: {{error}}"
   },
   "card": {
     "enabled": "Enabled {{enabled}} / {{total}}",
@@ -31,6 +33,9 @@
     "title": "UI resources",
     "hint": "UI and other shared Mods",
     "summary": "{{count}} UI resources · {{mods}} Mods"
+  },
+  "sort": {
+    "saveFailed": "Could not save the order: {{error}}"
   },
   "filter": {
     "showAll": "Show all characters"

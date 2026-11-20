@@ -27,7 +27,12 @@ function Menu({
       align === "start"
         ? Math.min(rect.left, window.innerWidth - width - 12)
         : Math.max(12, rect.right - width);
-    setPosition({ top: rect.bottom + 6, left: Math.max(12, left) });
+    const height = panel.current?.offsetHeight || 0;
+    const top =
+      rect.bottom + 6 + height <= window.innerHeight - 12
+        ? rect.bottom + 6
+        : Math.max(12, rect.top - height - 6);
+    setPosition({ top, left: Math.max(12, left) });
   }, [open, align]);
   React.useEffect(() => {
     if (!open) return;
@@ -99,7 +104,11 @@ function Menu({
         role="menu"
         aria-label={label}
         hidden={!open}
-        style={{ ...position, minWidth, visibility: position ? void 0 : "hidden" }}
+        style={{
+          ...position,
+          minWidth,
+          visibility: position ? void 0 : "hidden",
+        }}
         onKeyDown={handleKeyDown}
         onClickCapture={(event) => {
           if (closeOnSelect && event.target.closest("button")) setOpen(false);
@@ -112,7 +121,14 @@ function Menu({
   );
 }
 
-function MenuItem({ icon, hint, danger = false, children, className = "", ...rest }) {
+function MenuItem({
+  icon,
+  hint,
+  danger = false,
+  children,
+  className = "",
+  ...rest
+}) {
   return (
     <button
       type="button"

@@ -4,11 +4,12 @@ import { Icon } from "./Icon.jsx";
 import { Menu, MenuItem } from "./Menu.jsx";
 
 function LaunchIcon({ kind, launching }) {
-  if (launching) return <span className="spinner launch-spinner" aria-hidden="true" />;
+  if (launching)
+    return <span className="spinner launch-spinner" aria-hidden="true" />;
   return <Icon name={kind} size={15} />;
 }
 
-function LaunchControls({ activeGame, settingsActive, onOpenSettings }) {
+function LaunchControls({ activeGame }) {
   const [launching, setLaunching] = React.useState(null);
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
@@ -80,7 +81,12 @@ function LaunchControls({ activeGame, settingsActive, onOpenSettings }) {
           <MenuItem
             className="launch-button"
             aria-label={t("games.launch.official")}
-            icon={<LaunchIcon kind="external" launching={launching === "OFFICIAL"} />}
+            icon={
+              <LaunchIcon
+                kind="external"
+                launching={launching === "OFFICIAL"}
+              />
+            }
             hint={t("games.launch.officialHint")}
             disabled={busy}
             onClick={() => launch("OFFICIAL")}
@@ -88,19 +94,6 @@ function LaunchControls({ activeGame, settingsActive, onOpenSettings }) {
             {launching === "OFFICIAL"
               ? t("games.launch.launching")
               : t("games.launch.officialCompact")}
-          </MenuItem>
-          <div className="menu-sep" />
-          <MenuItem
-            className={`game-settings-button${settingsActive ? " active" : ""}`}
-            aria-label={t("navigation.gameSettings")}
-            aria-current={settingsActive ? "page" : void 0}
-            icon={<Icon name="sliders" />}
-            disabled={!activeGame?.id}
-            onClick={onOpenSettings}
-          >
-            {activeGame
-              ? t("games.settingsLabel", { name: activeGame.name })
-              : t("navigation.gameSettings")}
           </MenuItem>
         </Menu>
       </div>

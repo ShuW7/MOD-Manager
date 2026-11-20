@@ -22,13 +22,11 @@ function clearHotkeysCacheForMod(characterName, modName, gameId2 = gamesSettings
 }
 function getPrimaryHotkeysCacheKey(characterName, modName, gameId2 = gamesSettings.getActiveGameScopeId()) {
   const canonicalCharacterName = charactersDirectories.getCanonicalCharacterConfigKey(characterName, gameId2);
-  return `${gameId2 === "genshin-impact" ? "genshin-impact/" : ""}${canonicalCharacterName}/${modName}`;
+  return `${canonicalCharacterName}/${modName}`;
 }
 function invalidateHotkeysForGame(gameId = gamesSettings.getActiveGameScopeId()) {
-  // Older games share the unprefixed cache; invalidate that whole legacy scope.
-  for (const key of Object.keys(hotkeysCache)) {
-    if (key.startsWith("genshin-impact/") === (gameId === "genshin-impact")) delete hotkeysCache[key];
-  }
+  // Single-game manager: every cached key belongs to the active game.
+  for (const key of Object.keys(hotkeysCache)) delete hotkeysCache[key];
   saveHotkeysCache();
   notifyHotkeysChanged("__all__", null, gameId);
 }

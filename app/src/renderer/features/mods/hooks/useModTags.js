@@ -8,6 +8,8 @@ export function useModTags({
   setToast,
   characterName,
   mods,
+  setMods,
+  setSelectedMod,
 }) {
   const [modTags, setModTags] = React.useState([]);
   const [tagInput, setTagInput] = React.useState("");
@@ -79,6 +81,16 @@ export function useModTags({
     try {
       await window.api.devSetModTags(selectedMod.path, normalizedTags);
       setModTags(normalizedTags);
+      // The read-only chips and the tag filter pool are derived from the Mod
+      // list, not from the DEV editor state; patch both so save has feedback.
+      if (selectedMod?.path) {
+        const patchTags = (mod) =>
+          mod?.path === selectedMod.path
+            ? { ...mod, tags: normalizedTags }
+            : mod;
+        setSelectedMod?.((previous) => patchTags(previous));
+        setMods?.((previous) => previous.map(patchTags));
+      }
       const cfg = await window.api.getConfig();
       const serverUrl = cfg?.config?.serverUrl || "https://qaqm.top";
       const modFolderName = selectedMod.name;
@@ -101,7 +113,7 @@ export function useModTags({
         }
       }
       const modsRes = await fetch(
-        `${serverUrl}/api/mods?gameId=${activeGameId || "endfield"}`,
+        `${serverUrl}/api/mods?gameId=${activeGameId || "arknights"}`,
       );
       const modsData = await modsRes.json();
       const allMods = modsData.mods || modsData.data || [];

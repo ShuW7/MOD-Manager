@@ -8,7 +8,7 @@ const { EventEmitter } = require('node:events');
 const main = path.resolve(__dirname, '../app/src/main');
 const results = path.resolve(__dirname, '../test-results');
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
-const fixtureMod = { id: 'fixture', name: 'Fixture', characterName: '安可', gameId: 'wuthering-waves', downloadUrl: 'https://market.test/mod.zip' };
+const fixtureMod = { id: 'fixture', name: 'Fixture', characterName: '阿米娅', gameId: 'arknights', downloadUrl: 'https://market.test/mod.zip' };
 const accepted = { success: true, mods: [fixtureMod], syncTimestamp: '2026-10-30T00:00:00.000Z', version: 'v1' };
 
 let market;
@@ -48,7 +48,7 @@ test.before(() => {
   configStore.currentConfig.serverUrl = 'https://market.test';
   require(path.join(main, 'market/catalog.cjs')).registerIpc();
   market = {
-    sync: (options = {}) => handlers.get('sync-mod-market')({}, { serverUrl: 'https://market.test', gameId: 'wuthering-waves', ...options }),
+    sync: (options = {}) => handlers.get('sync-mod-market')({}, { serverUrl: 'https://market.test', gameId: 'arknights', ...options }),
     poll: () => handlers.get('market:poll')({}, {}),
     respondWith: handler => { respond = handler; }
   };

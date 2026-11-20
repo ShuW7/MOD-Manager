@@ -223,7 +223,6 @@ export function MarketToolbar({
         >
           <option value="all">{t("market.filters.allModes")}</option>
           <option value="d3d">{"3dm"}</option>
-          <option value="pak">{"Pak"}</option>
         </select>
         <select
           value={sortBy}

@@ -7,9 +7,9 @@ const THEME_MODES = ["dark", "light", "system"];
 function readThemeMode() {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    return THEME_MODES.includes(stored) ? stored : "dark";
+    return THEME_MODES.includes(stored) ? stored : "light";
   } catch {
-    return "dark";
+    return "light";
   }
 }
 

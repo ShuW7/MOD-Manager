@@ -2,25 +2,12 @@ import { t } from "../../../shared/i18n/index.mjs";
 import React from "react";
 import PawchiveView from "./PawchiveView.jsx";
 import ModMarketView from "../market/ModMarketView.jsx";
-import ModSiteView from "./ModSiteView.jsx";
-import { SiteManagerDialog } from "./SiteManagerDialog.jsx";
-import { Icon } from "../../components/Icon.jsx";
 
-const BASE_SOURCES = [
+const SOURCES = [
   ["qaqm", "QAQR"],
   ["kemono", "Kemono"],
   ["pawchive", "Pawchive"],
 ];
-const FALLBACK_SITES = [
-  { id: "gamebanana", label: t("downloads.sources.gamebanana") },
-  { id: "arca", label: t("downloads.sources.arca") },
-  { id: "loverslab", label: "LoversLab" },
-  { id: "huiyue", label: t("downloads.sources.hui") },
-  { id: "keke", label: t("downloads.sources.cocoa") },
-];
-function sourceList(sites = FALLBACK_SITES) {
-  return [...BASE_SOURCES, ...sites.map((site) => [site.id, site.label])];
-}
 function rememberedSource(sources) {
   try {
     const saved = localStorage.getItem("qaqm.downloadSource");
@@ -30,7 +17,7 @@ function rememberedSource(sources) {
   }
   return "qaqm";
 }
-function SourceTabs({ sources, value, onChange, onManage }) {
+function SourceTabs({ sources, value, onChange }) {
   function navigate(event) {
     const index = sources.findIndex(([id]) => id === value);
     const target = {
@@ -66,16 +53,6 @@ function SourceTabs({ sources, value, onChange, onManage }) {
           </button>
         ))}
       </div>
-      <button
-        type="button"
-        className="btn btn-ghost btn-sm source-manager-button"
-        title={t("downloads.siteManager.title")}
-        aria-label={t("downloads.siteManager.title")}
-        onClick={onManage}
-      >
-        <Icon name="gear" size={15} />
-        {t("downloads.siteManager.manage")}
-      </button>
     </div>
   );
 }
@@ -85,37 +62,10 @@ function ModDownloadView({
   onQaqmActiveChange,
   ...marketProps
 }) {
-  const [source, setSource] = React.useState(() => rememberedSource(sourceList()));
-  const [catalog, setCatalog] = React.useState(null);
-  const [managerOpen, setManagerOpen] = React.useState(false);
+  const [source, setSource] = React.useState(() => rememberedSource(SOURCES));
   const [visited, setVisited] = React.useState(() => new Set([source]));
-  const sources = React.useMemo(() => sourceList(catalog || FALLBACK_SITES), [catalog]);
   const current = marketProps.pendingDetailMod ? "qaqm" : source;
   const restoreTabFocus = React.useRef(false);
-  const loadCatalog = React.useCallback(async () => {
-    try {
-      const result = await window.api.modSiteCatalog();
-      if (result?.success && Array.isArray(result.sites)) setCatalog(result.sites);
-    } catch {
-      /* Keep the built-in source list. */
-    }
-  }, []);
-  React.useEffect(() => {
-    loadCatalog();
-  }, [loadCatalog]);
-  React.useEffect(() => {
-    if (!catalog) return;
-    let saved = "";
-    try {
-      saved = localStorage.getItem("qaqm.downloadSource") || "";
-    } catch {}
-    if (saved && sources.some(([id]) => id === saved) && saved !== source) {
-      setSource(saved);
-      setVisited((items) => new Set([...items, saved]));
-    } else if (!sources.some(([id]) => id === source)) {
-      selectSource("qaqm");
-    }
-  }, [catalog, sources, source]);
   React.useEffect(() => {
     onQaqmActiveChange?.(isActive && current === "qaqm");
     return () => onQaqmActiveChange?.(false);
@@ -144,18 +94,8 @@ function ModDownloadView({
   React.useEffect(() => {
     if (marketProps.pendingDetailMod) selectSource("qaqm");
   }, [marketProps.pendingDetailMod]);
-  async function sitesChanged(site) {
-    await loadCatalog();
-    if (site?.id) selectSource(site.id);
-    else selectSource("qaqm");
-  }
   const tabs = (
-    <SourceTabs
-      sources={sources}
-      value={current}
-      onChange={chooseSource}
-      onManage={() => setManagerOpen(true)}
-    />
+    <SourceTabs sources={SOURCES} value={current} onChange={chooseSource} />
   );
   return (
     <section
@@ -163,46 +103,31 @@ function ModDownloadView({
       aria-label={t("navigation.modDownloads")}
     >
       <h1 className="sr-only">{t("navigation.modDownloads")}</h1>
-      {managerOpen && (
-        <SiteManagerDialog
-          sites={catalog || FALLBACK_SITES}
-          onClose={() => setManagerOpen(false)}
-          onChanged={sitesChanged}
-        />
-      )}
-      {sources
-        .filter(([id]) => visited.has(id) || id === current)
-        .map(([id]) => (
-          <div
-            key={id}
-            className="mod-download-provider"
-            hidden={current !== id}
-            data-source={id}
-          >
-            {id === "qaqm" ? (
-              <ModMarketView
-                {...marketProps}
-                key={marketKey}
-                isActive={isActive && current === id}
-                sourceTabs={current === id ? tabs : null}
-              />
-            ) : ["kemono", "pawchive"].includes(id) ? (
-              <PawchiveView
-                source={id}
-                isActive={isActive && current === id}
-                sourceTabs={current === id ? tabs : null}
-              />
-            ) : (
-              <ModSiteView
-                key={`${id}:${marketProps.activeGameId}`}
-                source={id}
-                gameId={marketProps.activeGameId}
-                isActive={isActive && current === id}
-                sourceTabs={current === id ? tabs : null}
-              />
-            )}
-          </div>
-        ))}
+      {SOURCES.filter(
+        ([id]) => visited.has(id) || id === current,
+      ).map(([id]) => (
+        <div
+          key={id}
+          className="mod-download-provider"
+          hidden={current !== id}
+          data-source={id}
+        >
+          {id === "qaqm" ? (
+            <ModMarketView
+              {...marketProps}
+              key={marketKey}
+              isActive={isActive && current === id}
+              sourceTabs={current === id ? tabs : null}
+            />
+          ) : (
+            <PawchiveView
+              source={id}
+              isActive={isActive && current === id}
+              sourceTabs={current === id ? tabs : null}
+            />
+          )}
+        </div>
+      ))}
     </section>
   );
 }

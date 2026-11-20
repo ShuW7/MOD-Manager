@@ -7,6 +7,7 @@ export function useModContextActions({
   activeGameId,
   refreshMods,
   onOpenTextConfig,
+  setSelectedMod,
 }) {
   const [fixRunning, setFixRunning] = React.useState(false);
   const [reloadingMod, setReloadingMod] = React.useState("");
@@ -45,9 +46,6 @@ export function useModContextActions({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [modContextMenu]);
-  function isDx12PakMod(mod) {
-    return mod?.modType === "dx12-pak";
-  }
   async function handleReloadMod(mod) {
     if (reloadBusy.current || activeGameId !== "arknights") return;
     reloadBusy.current = true;
@@ -78,20 +76,16 @@ export function useModContextActions({
     onOpenTextConfig?.(mod);
   }
   async function openModSourceFolder(mod) {
-    if (isDx12PakMod(mod)) {
-      const result = await window.api.openModFolder(characterName, mod.name);
-      if (!result?.success)
-        setToast({
-          type: "error",
-          message: result?.error || t("mods.pak.openCharacterDirectoryFailed"),
-        });
-      return;
-    }
     window.api.openModFolder(characterName, mod.name);
   }
   function openModContextMenu(e, mod) {
     e.preventDefault();
     e.stopPropagation();
+    // The context menu acts on the Mod under the cursor; make the details
+    // panel follow that target instead of keeping an unrelated selection.
+    setSelectedMod?.((current) =>
+      current?.path === mod?.path ? current : mod,
+    );
     const menuWidth = 220;
     const submenuWidth = 252;
     const menuHeight = 350;
@@ -265,7 +259,6 @@ export function useModContextActions({
     iniRollbackBackups,
     iniRollbackConfirm,
     setIniRollbackConfirm,
-    isDx12PakMod,
     openModSourceFolder,
     openModContextMenu,
     loadModIniBackups,

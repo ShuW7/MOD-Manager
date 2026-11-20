@@ -1,7 +1,7 @@
 import { t } from "../../../../shared/i18n/index.mjs";
 import { readAuthSession } from "../../../lib/authSession.js";
 function getModGameId(mod) {
-  return mod?.gameId || "endfield";
+  return mod?.gameId || "arknights";
 }
 function buildImageList(mod) {
   const raw =
@@ -476,7 +476,7 @@ function getVariantVersionLabel(mod, index = 0) {
   );
 }
 function getModModeLabel(modMode) {
-  return modMode === "pak" ? "Pak" : "3dm";
+  return "3dm";
 }
 function normalizeMarketCardScale(value) {
   if (value === "small") return 88;

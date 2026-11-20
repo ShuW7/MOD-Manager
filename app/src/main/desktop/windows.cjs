@@ -183,6 +183,15 @@ function createWindow() {
       action: "deny"
     };
   });
+  // The app is a single-page shell: any main-frame navigation (for example a
+  // file drop that was not cancelled in the renderer) would replace it with a
+  // directory/file view. Only same-URL reloads are allowed.
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    const currentUrl = mainWindow.webContents.getURL();
+    if (currentUrl && url === currentUrl) return;
+    event.preventDefault();
+    coreLogger.logger.warn("Blocked unexpected main-window navigation:", url);
+  });
   mainWindow.on("close", async e => {
     if (isQuitting) return;
     const behavior = configStore.currentConfig.closeBehavior || "ask";

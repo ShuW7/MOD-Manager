@@ -27,6 +27,7 @@ let pendingSync = false;
 let lastSignature = "";
 const reports = new Map();
 const initializedLibraries = new Set();
+const generatedFingerprintMemo = {};
 
 function paths() {
   const game = settings.getGameById(GAME);
@@ -63,11 +64,13 @@ function enabledEntries(extra = null) {
   if (!fs.existsSync(p.library)) return [];
   const entries = [];
   for (const character of directories.listCharacterDirectories(p.library, GAME)) {
-    if (hidden.isCharacterHidden(character.displayName, GAME)) continue;
+    if (!character.modCount || hidden.isCharacterHidden(character.displayName, GAME)) continue;
     files.assertNoLinks(character.characterRootPath);
+    let ids;
     for (const mod of fs.readdirSync(character.characterRootPath, { withFileTypes: true })) {
       if (!mod.isDirectory() || files.DISABLED.test(mod.name) || mod.name.startsWith(".")) continue;
-      entries.push({ path: path.join(character.characterRootPath, mod.name), name: `${character.displayName}/${mod.name}`, characterIds: characterIds(character.displayName) });
+      ids ??= characterIds(character.displayName);
+      entries.push({ path: path.join(character.characterRootPath, mod.name), name: `${character.displayName}/${mod.name}`, characterIds: ids });
     }
   }
   if (extra && !entries.some(entry => entry.path === extra.path)) entries.push(extra);
@@ -84,10 +87,11 @@ function sync({ force = false, changedModPath = "", confirmedConflictIds = [] } 
   try {
     const entries = enabledEntries();
     const approvedConflictIds = conflictApprovals(confirmedConflictIds).ids;
-    const planned = deployment.planDeployment(entries, { approvedConflictIds });
+    const inspected = deployment.inspectEntries(entries);
+    const planned = deployment.validatePlan(inspected, approvedConflictIds);
     const signature = JSON.stringify([p.library, p.destination, ...planned.map(entry => [entry.path, ...[...entry.resources, ...entry.manifests, ...(entry.bundles || [])].map(file => [file.relative, file.size, file.mtimeMs])])]);
     if (!force && !changedModPath && lastSync?.success && signature === lastSignature && fs.existsSync(p.destination)) return lastSync;
-    const { sources: _sources, approvedResourcePairs: _pairs, modOrder: _order, ...summary } = deployment.deploy({ ...p, entries, changedModPath, approvedConflictIds });
+    const { sources: _sources, approvedResourcePairs: _pairs, modOrder: _order, ...summary } = deployment.deploy({ ...p, entries, changedModPath, approvedConflictIds }, inspected);
     lastSync = { success: true, ...summary };
     lastSignature = signature;
   } catch (error) {
@@ -124,7 +128,7 @@ function status() {
   return { success: true, ...p, ...sourceComponent.state(), sync: lastSync, migrationError: configStore.currentConfig.arknightsMigrationError || "" };
 }
 function generatedFingerprint(root) {
-  return files.fingerprint(root, { maxBytes: 64 * 1024 * 1024 * 1024, maxFiles: 100000 });
+  return files.fingerprint(root, { maxBytes: 64 * 1024 * 1024 * 1024, maxFiles: 100000 }, generatedFingerprintMemo);
 }
 function componentFingerprint() {
   return crypto.createHash("sha256").update(JSON.stringify(sourceComponent.packageInfo().manifest)).digest("hex");
@@ -248,11 +252,12 @@ async function toggleMod({ characterName, modName, enable, autoReload = true, co
     const target = path.join(path.dirname(current), enable ? cleanName : "DISABLED_" + cleanName);
     if (current === target) return { success: true, autoReloaded: false, alreadyInState: true };
     if (fs.existsSync(target)) throw Error(i18n.t("arknights.errors.invalidPath"));
-    if (enable) assertCanEnable(current, { characterName, confirmedConflictIds });
     files.renameDirectory(current, target);
     const previousApprovals = configStore.currentConfig.arknightsConflictApprovals;
     try {
-      sync({ confirmedConflictIds });
+      // The atomic deployment validates every conflict before committing. On
+      // failure the directory rename is also rolled back below.
+      sync({ confirmedConflictIds, changedModPath: target });
       if (enable && confirmedConflictIds.length) {
         const approvals = conflictApprovals(confirmedConflictIds);
         configStore.currentConfig.arknightsConflictApprovals = { ...previousApprovals, [approvals.key]: approvals.ids };
@@ -266,7 +271,7 @@ async function toggleMod({ characterName, modName, enable, autoReload = true, co
       throw error;
     }
     let reload;
-    try { reload = autoReload ? await reloadMod({ characterName, modName: cleanName, optional: true }) : { autoReloaded: false }; }
+    try { reload = autoReload ? await reloadMod({ characterName, modName: cleanName, optional: true }, { alreadyDeployed: true }) : { autoReloaded: false }; }
     catch (error) { reload = { autoReloaded: false, reloadError: error.message }; }
     require("../../mods/conflicts.cjs").clearConflictCache(characterName, GAME);
     require("../../desktop/notifications.cjs").notifyCharacterListChanged(characterName, { gameId: GAME, modName: cleanName, reason: "toggle", resourcesChanged: false });

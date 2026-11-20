@@ -15,7 +15,7 @@ function createPublishTaskId() {
   return `publish-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 function getPublishPrefsKey(gameId) {
-  return `${PUBLISH_PREFS_PREFIX}:${gameId || "endfield"}`;
+  return `${PUBLISH_PREFS_PREFIX}:${gameId || "arknights"}`;
 }
 function cleanText(value) {
   return String(value || "").trim();
@@ -180,7 +180,7 @@ function getSourceOptions(prefs, selectedAuthor) {
   return options;
 }
 function getDatalistSuffix(gameId) {
-  return String(gameId || "endfield").replace(/[^a-z0-9_-]/gi, "-");
+  return String(gameId || "arknights").replace(/[^a-z0-9_-]/gi, "-");
 }
 function parseR2Metrics(message) {
   const text = String(message || "");
@@ -203,13 +203,12 @@ function PublishModDialog({
   modName,
   modFolderPath,
   gameId,
-  initialModMode,
   visible = true,
   onClose,
   onMinimize,
   onStateChange,
 }) {
-  const effectiveGameId = gameId || "endfield";
+  const effectiveGameId = gameId || "arknights";
   const initialPublishPrefsRef = React.useRef(null);
   if (!initialPublishPrefsRef.current)
     initialPublishPrefsRef.current = readPublishPrefs(effectiveGameId);
@@ -223,9 +222,8 @@ function PublishModDialog({
     initialPublishPrefsRef.current.lastGameVersion || "",
   );
   const [gameVersions, setGameVersions] = React.useState([]);
-  const [modMode, setModMode] = React.useState(
-    initialModMode === "pak" ? "pak" : "d3d",
-  );
+  // Arknights mods use the same loader metadata on the market server.
+  const modMode = "d3d";
   const [description, setDescription] = React.useState(getDefaultDescription());
   const [author, setAuthor] = React.useState("");
   const [sourceUrl, setSourceUrl] = React.useState("");
@@ -598,7 +596,7 @@ function PublishModDialog({
       modFolder: modFolderPath,
       charName: characterName,
       modName,
-      gameId: gameId || "endfield",
+      gameId: gameId || "arknights",
       modMode,
       author: author.trim(),
       sourceUrl: sourceUrl.trim(),
@@ -631,7 +629,7 @@ function PublishModDialog({
       modName,
       version: gameVersion || version,
       gameVersion: gameVersion || version,
-      gameId: gameId || "endfield",
+      gameId: gameId || "arknights",
       modMode,
       description,
       author: author.trim(),
@@ -684,7 +682,7 @@ function PublishModDialog({
       modId,
       quarkLink: resultLinks.quark || "",
       baiduLink: resultLinks.baidu || "",
-      gameId: gameId || "endfield",
+      gameId: gameId || "arknights",
       modMode,
       author: author.trim(),
       sourceUrl: sourceUrl.trim(),
@@ -784,27 +782,6 @@ function PublishModDialog({
                       onChange={(e) => selectGameVersion(e.target.value)}
                       placeholder={t("market.publish.customVersion")}
                     />
-                  </div>
-                  <div className="dev-field">
-                    <span>{t("characters.mode.title")}</span>
-                    <div className="segmented">
-                      {[
-                        { value: "d3d", label: "3dm" },
-                        { value: "pak", label: "Pak" },
-                      ].map((item) => (
-                        <button
-                          type="button"
-                          className={modMode === item.value ? "active" : ""}
-                          onClick={() => {
-                            setModMode(item.value);
-                            setUserDirty(true);
-                          }}
-                          key={item.value}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
                   </div>
                   <label className="dev-field">
                     <span>{t("market.publish.optionalDescription")}</span>

@@ -14,7 +14,6 @@ const coreLogger = require("../core/logger.cjs");
 const desktopNotifications = require("../desktop/notifications.cjs");
 const desktopWindows = require("../desktop/windows.cjs");
 const gamesEnvironment = require("../games/environment.cjs");
-const gamesNevernessLoader = require("../games/neverness/loader.cjs");
 const gamesSettings = require("../games/settings.cjs");
 const importsBatchScan = require("./batch-scan.cjs");
 const importsIntegrated = require("./integrated.cjs");
@@ -24,7 +23,6 @@ const installPaths = require("../install/paths.cjs");
 const modsAppearance = require("../mods/appearance.cjs");
 const modsBackups = require("../mods/backups.cjs");
 const modsConflicts = require("../mods/conflicts.cjs");
-const modsNevernessPaks = require("../games/neverness/paks.cjs");
 const overlayKeypress = require("../overlay/keypress.cjs");
 const persistMigration = require("../persist/migration.cjs");
 const persistTracking = require("../persist/tracking.cjs");
@@ -76,8 +74,7 @@ function registerIpc() {
           }
         } else if (entry.isFile()) {
           const item = importsBatchScan.batchArchiveItem(entryPath, true);
-          const loosePakItem = item ? null : importsBatchScan.batchLoosePakItem(entryPath);
-          importsBatchScan.pushBatchItem(items, item || loosePakItem);
+          importsBatchScan.pushBatchItem(items, item);
         }
       }
       return {
@@ -449,41 +446,6 @@ function registerIpc() {
           completeBatchItem(idx, { modName, success: !!result.success });
           continue;
         }
-        if (gamesNevernessLoader.isNevernessGame(gameId2)) {
-          const pakDetection = await modsNevernessPaks.detectNevernessDx12PakSource(item.tempPath || filePath);
-          if (pakDetection.isPak) {
-            gamesNevernessLoader.setNevernessModMode("dx12");
-            const result = await modsNevernessPaks.importNevernessDx12PakMod(characterName, item.tempPath || filePath, {
-              ...item,
-              name: modName
-            }, {
-              gameId: gameId2,
-              notify: false
-            });
-            if (item.tempPath && fs.existsSync(item.tempPath)) {
-              try {
-                fs.rmSync(item.tempPath, {
-                  recursive: true,
-                  force: true
-                });
-              } catch (_) {}
-            }
-            results.push({
-              modName,
-              characterName,
-              modMode: "pak",
-              appearanceSectionId: result?.appearanceSectionId || charactersSkins.BASE_APPEARANCE_SECTION_ID,
-              success: !!result?.success,
-              error: result?.error
-            });
-            completeBatchItem(idx, {
-              modName,
-              success: !!result?.success
-            });
-            continue;
-          }
-          gamesNevernessLoader.setNevernessModMode("nemi");
-        }
         const preparedPath = item.tempPath && fs.existsSync(item.tempPath) ? item.tempPath : null;
         const shouldInstallIntegrated = !!(item.installAsIntegratedPackage || item.expectedIntegratedPackage);
         const integratedSourcePath = shouldInstallIntegrated ? preparedPath || (item.expectedIntegratedPackage && filePath && fs.existsSync(filePath) ? filePath : null) : null;
@@ -765,9 +727,6 @@ function registerIpc() {
           } catch (_) {}
         }
       }
-    }
-    if (gamesNevernessLoader.isNevernessGame(gameId2) && results.some(item => item.success && item.modMode === "pak")) {
-      gamesNevernessLoader.setNevernessModMode("dx12");
     }
     try {
       const env = gamesEnvironment.resolveActiveGameEnvRoot(gameId2);

@@ -140,7 +140,7 @@ function LinkCheckerPanel({ gameId, onClose }) {
     const modsDir = extraParams.modsDir || (await resolveCurrentModsDir());
     const r = await window.api.devBatchCloudOp({
       mode,
-      gameId: gameId || "endfield",
+      gameId: gameId || "arknights",
       modsDir,
       characters: "",
       password: "qsl",
@@ -205,7 +205,7 @@ function LinkCheckerPanel({ gameId, onClose }) {
     lines.push(t("market.links.title"));
     lines.push(
       t("market.cloud.gameLabel", {
-        gameId: gameId || "endfield",
+        gameId: gameId || "arknights",
       }),
     );
     if (progress.message)

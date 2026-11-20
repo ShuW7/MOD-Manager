@@ -10,7 +10,7 @@ const modId = directory => crypto.createHash("sha256").update(directory).digest(
 const samePath = (a, b) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
 
 function createModReloader({ paths, resolveMod, characterIds, sync, runNative, runWorker }) {
-  return async function reloadMod({ characterName, modName, optional = false }) {
+  return async function reloadMod({ characterName, modName, optional = false }, { alreadyDeployed = false } = {}) {
     const p = paths();
     const running = await runNative(["--status"]);
     if (!running.running) {
@@ -37,16 +37,20 @@ function createModReloader({ paths, resolveMod, characterIds, sync, runNative, r
     const source = resolveMod(characterName, modName);
     const id = modId(path.join(path.dirname(source), path.basename(source).replace(files.DISABLED, "")));
     const affectedBundles = index.bundles.filter(bundle => bundle.inputs?.some(input => input.startsWith(id + "/"))).map(bundle => bundle.logical);
-    const fingerprint = files.fingerprint(source);
-    sync({ changedModPath: source });
+    const fingerprintMemo = {};
+    const fingerprint = files.fingerprint(source, {}, fingerprintMemo);
+    // A toggle already forced this Mod into Resources. Check for subsequent
+    // library edits without staging the same deployment a second time.
+    sync(alreadyDeployed ? {} : { changedModPath: source });
     const output = path.join(reloadRoot, crypto.randomUUID());
     files.assertOutsideGame(output, p.gamePath);
     let sent = false;
     try {
       const built = await runWorker({ action: "build-bundles", source: p.destination, gamePath: p.gamePath, output, scopeSource: source, affectedBundles, characterIds: characterIds(characterName) });
-      if (files.fingerprint(source) !== fingerprint || !samePath(paths().bundleRoot, p.bundleRoot) || paths().gamePath !== p.gamePath || paths().library !== p.library) throw Error(i18n.t("arknights.errors.changed"));
+      if (files.fingerprint(source, {}, fingerprintMemo) !== fingerprint || !samePath(paths().bundleRoot, p.bundleRoot) || paths().gamePath !== p.gamePath || paths().library !== p.library) throw Error(i18n.t("arknights.errors.changed"));
       const touched = new Set([...built.bundles, ...built.removedBundles].map(bundle => bundle.logical.toLowerCase()));
-      const next = { schemaVersion: 1, bundles: [...index.bundles.filter(bundle => !touched.has(bundle.logical.toLowerCase())), ...built.bundles] };
+      const changedSources = new Set([...built.bundles, ...built.removedBundles].map(bundle => bundle.source?.toLowerCase()).filter(Boolean));
+      const next = { schemaVersion: 1, bundles: [...index.bundles.filter(bundle => !touched.has(bundle.logical.toLowerCase()) && !changedSources.has(bundle.source?.toLowerCase())), ...built.bundles] };
       fs.writeFileSync(path.join(output, "bundle-index.json"), JSON.stringify(next));
       const patch = path.join(output, "manifest.tsv");
       let accepted;

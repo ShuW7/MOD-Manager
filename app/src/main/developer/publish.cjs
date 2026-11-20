@@ -14,7 +14,7 @@ const gamesSettings = require("../games/settings.cjs");
 function buildLocalPublishKey(modFolder, gameId2, characterName, modName) {
   const identity = [String(gameId2 || "").trim().toLowerCase(), String(characterName || "").trim(), String(modName || "").trim(), String(path.resolve(modFolder || "")).replace(/\\/g, "/").toLowerCase()].join("|");
   const digest = crypto.createHash("sha256").update(identity, "utf8").digest("hex").slice(0, 24);
-  return `local-client:${gameId2 || "endfield"}:${digest}`;
+  return `local-client:${gameId2 || "arknights"}:${digest}`;
 }
 const devPublishProcesses = new Map();
 function registerIpc() {

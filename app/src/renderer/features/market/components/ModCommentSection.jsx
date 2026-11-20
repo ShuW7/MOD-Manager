@@ -70,6 +70,12 @@ function ModCommentSection({
     setComments(cached?.comments || []);
     setTotal(cached?.total || 0);
     setPage(1);
+    // A new Mod must not inherit the previous draft, reply target or submit
+    // latch; otherwise a reply can be posted to the wrong Mod id.
+    setContent("");
+    setReplyTo(null);
+    setSubmitting(false);
+    setError(null);
   }, [serverUrl, modId]);
   React.useEffect(() => {
     if (!serverUrl || !clientId) return;
@@ -152,7 +158,17 @@ function ModCommentSection({
               }));
             const incoming = markOwn(data.comments || []);
             if (append) {
-              setComments((prev) => [...prev, ...incoming]);
+              setComments((prev) => {
+                const seen = new Set(prev.map((c) => String(c.id)));
+                const merged = [...prev];
+                for (const comment of incoming) {
+                  if (!seen.has(String(comment.id))) {
+                    seen.add(String(comment.id));
+                    merged.push(comment);
+                  }
+                }
+                return merged;
+              });
             } else {
               setComments((prev) => mergeRetainRecentOwn(prev, incoming));
             }
@@ -290,6 +306,7 @@ function ModCommentSection({
     setReplyTo(null);
     setSubmitting(true);
     setError(null);
+    let submittedOk = false;
     try {
       const body = {
         clientId,
@@ -318,6 +335,7 @@ function ModCommentSection({
       const stillOnOriginMod =
         currentModIdRef.current === postModId && isActiveRef.current;
       if (res.ok && data && data.success) {
+        submittedOk = true;
         const real = data.comment;
         if (real) {
           const normalizedReal = {
@@ -420,6 +438,17 @@ function ModCommentSection({
         setSubmitting(false);
       }
     }
+    // A new root comment shifts every page-based offset by one; restart from
+    // page 1 so "load more" cannot duplicate or skip comments.
+    if (
+      submittedOk &&
+      !isReply &&
+      currentModIdRef.current === postModId &&
+      isActiveRef.current
+    ) {
+      setPage(1);
+      loadComments(1, false, true);
+    }
   }
   async function handleLikeComment(commentId) {
     if (!serverUrl) return;
@@ -504,7 +533,11 @@ function ModCommentSection({
             replies: (c.replies || []).filter((r) => r.id !== commentId),
           }));
       setComments((prev) => removeHidden(prev));
-      if (!isReply) setTotal((value) => Math.max(0, value - 1));
+      if (!isReply) {
+        setTotal((value) => Math.max(0, value - 1));
+        setPage(1);
+        loadComments(1, false, true);
+      }
       const cached = readCommentsCache(serverUrl, modId);
       if (cached) {
         writeCommentsCache(serverUrl, modId, {

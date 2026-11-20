@@ -13,8 +13,12 @@ const runtimeExe = 'electron.exe';
 if (source === target || !fs.existsSync(path.join(source, runtimeExe))) throw Error('Run node tools/prepare-release.cjs to download the official Electron runtime');
 const appBuild = require('node:child_process').spawnSync(process.execPath, [path.join(root, 'tools/build-app.cjs')], { stdio: 'inherit', windowsHide: true });
 if (appBuild.status !== 0) process.exit(appBuild.status || 1);
-const componentsBuild = require('node:child_process').spawnSync(process.execPath, [path.join(root, 'tools/build-components.cjs')], { stdio: 'inherit', windowsHide: true });
-if (componentsBuild.status !== 0) process.exit(componentsBuild.status || 1);
+// Local test builds can pre-build exactly the components they need and skip the
+// loader rebuild here; the official build always runs the full component list.
+if (process.env.QAQR_SKIP_COMPONENTS !== '1') {
+  const componentsBuild = require('node:child_process').spawnSync(process.execPath, [path.join(root, 'tools/build-components.cjs')], { stdio: 'inherit', windowsHide: true });
+  if (componentsBuild.status !== 0) process.exit(componentsBuild.status || 1);
+}
 if (fs.existsSync(target)) {
   const resolvedTarget = fs.realpathSync(target);
   const resolvedBuild = fs.realpathSync(buildRoot);
@@ -63,6 +67,16 @@ fs.rmSync(appTarget, { recursive: true, force: true });
 fs.mkdirSync(appTarget, { recursive: true });
 for (const name of ['out', 'resources', 'node_modules', 'package.json', 'package-lock.json']) {
   fs.cpSync(path.join(root, 'app', name), path.join(appTarget, name), { recursive: true });
+}
+// `electron` is a build-only peer pulled in by npm for @electron-toolkit. It
+// must not ship, otherwise `require("electron")` resolves the npm loader inside
+// the packaged main process instead of Electron's built-in module.
+const packagedNodeModules = path.join(appTarget, 'node_modules');
+for (const name of ['electron', '@electron/get', '@electron-internal']) {
+  fs.rmSync(path.join(packagedNodeModules, name), { recursive: true, force: true });
+}
+for (const name of ['electron', 'electron.cmd', 'electron.ps1']) {
+  fs.rmSync(path.join(packagedNodeModules, '.bin', name), { force: true });
 }
 require('./package-files.cjs').copyLocalComponents(root, target);
 // Product name and version come from the application manifest.

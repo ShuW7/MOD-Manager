@@ -20,7 +20,7 @@
     "showAll": "显示全部角色"
   },
   "fixer": {
-    "title": "修复器",
+    "title": "修复 Mod",
     "openHint": "打开修复器",
     "iniReset": "{{charName}} 的 {{restoredCount}} 个 ini 已重置，请按 F10 重载生效",
     "noIniToReset": "{{charName}} 没有需要重置的 ini",
@@ -35,6 +35,8 @@
     "scanDroppedFailed": "扫描拖入文件失败",
     "configureBeforeImport": "先选择游戏的 Mods 文件夹",
     "checkDownloadedFile": "未找到可导入的 Mod，检查下载文件",
+    "decryptFailed": "分析导入文件失败：{{error}}",
+    "installFailed": "导入 Mod 失败：{{error}}",
     "gameChanged": "游戏已切换，重新选择导入",
     "stepSelect": "选择",
     "stepAnalyze": "分析",
@@ -80,7 +82,7 @@
     "resultSummary": "{{filterCount}} 个成功，{{otherFilterCount}} 个失败",
     "overwriteSummary": "覆盖当前 Mods：{{characterCount}} 角色 / {{modCount}} Mod",
     "title": "导入 Mod",
-    "batchTitle": "导入 Mod",
+    "batchTitle": "批量导入",
     "integratedTitle": "整合包导入",
     "batchModsTitle": "导入 Mod",
     "batchDescription": "一次导入多个 Mod",
@@ -136,10 +138,11 @@
     "usage": "常用",
     "usageHint": "最近常用在前，可拖动排序",
     "modCountHint": "按 Mod 数量",
-    "modCount": "数量",
+    "modCount": "Mod 数量",
     "nameHint": "按名称",
     "dragHint": "切回“常用”后可拖动排序",
-    "saved": "顺序已保存"
+    "saved": "顺序已保存",
+    "saveFailed": "顺序保存失败：{{error}}"
   },
   "grid": {
     "openableCard": "可打开的角色卡片",
@@ -149,33 +152,15 @@
     "moreActions": "{{charName}} 更多操作"
   },
   "list": {
-    "title": "角色",
-    "summary": "{{visibleCharactersCount}} 个角色 · {{totalVisibleMods}} 个 Mod",
+    "title": "角色列表",
+    "summary": "当前显示 {{visibleCharactersCount}} / {{charactersCount}} 个角色，合计 {{totalVisibleMods}} 个 Mod · {{totalVisibleSkins}} 款皮肤",
     "refreshHint": "重新读取本地角色和 Mod"
-  },
-  "mode": {
-    "title": "Mod 模式",
-    "dx11Hint": "使用当前角色目录的 Mod 文件夹",
-    "pakHint": "Mod 安装到 Paks\\{{pakDirName}}\\角色名",
-    "openPakDirectory": "打开 {{pakDirName}}",
-    "pakDirectoryHint": "打开 Client\\WindowsNoEditor\\HT\\Content\\Paks\\{{pakDirName}}",
-    "confirmPakTitle": "切换到 Pak Mod",
-    "confirmPakDescription": "切换后使用 Pak 目录管理 Mod，可随时切回",
-    "pakPathPrefix": "Pak 目录：",
-    "pakPathExample": "Client\\WindowsNoEditor\\HT\\Content\\Paks\\{{pakDirName}}\\角色名",
-    "confirmPak": "确认使用",
-    "detectedPak": "已识别 Pak Mod 并切换到 Pak 模式",
-    "readPakException": "读取 Pak 状态失败: {{message}}",
-    "dx11Enabled": "已切回 NEMI / DX11 Mod 模式",
-    "readPakFailed": "读取 Pak 状态失败",
-    "pakEnabled": "已切换到 Pak Mod 模式",
-    "openPakFolderFailed": "打开 Pak 文件夹失败"
   },
   "filter": {
     "withContentHint": "只看有 Mod 的角色",
-    "withContent": "有 Mod",
+    "withContent": "有内容",
     "allHint": "显示所有角色",
-    "all": "全部",
+    "all": "全部角色",
     "showAll": "显示全部角色"
   },
   "move": {

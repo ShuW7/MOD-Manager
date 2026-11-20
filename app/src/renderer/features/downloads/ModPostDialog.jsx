@@ -111,37 +111,10 @@ function Image({
   alt = "",
   avatar = false,
   loading = "lazy",
-  mediaSource,
-  gameId,
 }) {
   const [failed, setFailed] = React.useState(0);
-  const [resolved, setResolved] = React.useState("");
   React.useEffect(() => setFailed(0), [src, fallback]);
-  const current = failed === 0 ? src : failed === 1 ? fallback : "";
-  React.useEffect(() => {
-    if (!mediaSource || !current) return;
-    let cancelled = false;
-    setResolved("");
-    window.api
-      .modSiteImage({
-        source: mediaSource,
-        gameId,
-        url: current,
-      })
-      .then((result) => {
-        if (!cancelled) {
-          if (result.success) setResolved(result.dataUrl);
-          else setFailed((value) => value + 1);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setFailed((value) => value + 1);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [current, mediaSource, gameId]);
-  const display = mediaSource ? current && resolved : current;
+  const display = failed === 0 ? src : failed === 1 ? fallback : "";
   return display ? (
     <img
       src={display}
@@ -391,8 +364,6 @@ function PostDialog({
               <Image
                 src={item.thumbnail}
                 alt=""
-                mediaSource={item.mediaSource}
-                gameId={item.gameId}
               />
               <span>{item.title}</span>
             </button>
@@ -413,8 +384,6 @@ function PostDialog({
                   fallback={current.thumbnail}
                   alt={current.name || post.title}
                   loading="eager"
-                  mediaSource={post.mediaSource}
-                  gameId={post.gameId}
                 />
               ) : (
                 <div className="paw-gallery-empty">
@@ -479,8 +448,6 @@ function PostDialog({
                     <Image
                       src={item.thumbnail || item.url}
                       alt=""
-                      mediaSource={post.mediaSource}
-                      gameId={post.gameId}
                     />
                   </button>
                 ))}

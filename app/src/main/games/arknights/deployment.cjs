@@ -50,11 +50,11 @@ function validatePlan({ planned, conflicts }, approvedConflictIds) {
 function planDeployment(entries, { approvedConflictIds = [] } = {}) {
   return validatePlan(inspectEntries(entries), approvedConflictIds);
 }
-function deploy({ entries, library, destination, gamePath, changedModPath = "", approvedConflictIds = [], copy = fs.copyFileSync, link = fs.linkSync, rename = fs.renameSync }) {
+function deploy({ entries, library, destination, gamePath, changedModPath = "", approvedConflictIds = [], copy = fs.copyFileSync, link = fs.linkSync, rename = fs.renameSync }, inspected) {
   files.assertOutsideGame(destination, gamePath);
   files.assertOutsideGame(library, gamePath);
   if (files.inside(destination, library) || files.inside(library, destination)) throw Error(i18n.t("arknights.errors.overlap"));
-  const inspected = inspectEntries(entries);
+  inspected ??= inspectEntries(entries);
   const planned = validatePlan(inspected, approvedConflictIds);
   const approvedResourcePairs = inspected.conflicts.map(conflict => conflict.files.map(file => ({ file: path.join(modId(file.modPath), path.relative(file.modPath, file.path)).split(path.sep).join("/"), sha256: file.sha256 })));
   const previous = path.join(path.dirname(destination), "DISABLE_QAQR_previous");
@@ -145,4 +145,4 @@ function deploy({ entries, library, destination, gamePath, changedModPath = "", 
   }
 }
 
-module.exports = { planDeployment, findConflicts, deploy, MARKER };
+module.exports = { inspectEntries, validatePlan, planDeployment, findConflicts, deploy, MARKER };

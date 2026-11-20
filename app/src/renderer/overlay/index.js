@@ -23,6 +23,8 @@ document.body.innerHTML = renderLayout();
 initializeRendererI18n(window.overlayApi);
 let selectedChar = null;
 let selectedCharIndex = 0;
+let charWheelAccumulator = 0;
+let charWheelLastSwitchAt = 0;
 let characters = [];
 let currentMods = [];
 let appearanceSections = [];
@@ -646,6 +648,8 @@ async function handleCuteMenuAction(action) {
         applyOptimisticModState(modName, {
           pinned: nextPinned,
         });
+        pendingFocusState = null;
+        renderMods();
         showToast(
           nextPinned
             ? t("overlay.pin.addedNamed", {
@@ -864,11 +868,25 @@ document.getElementById("charStrip").addEventListener(
   (e) => {
     e.preventDefault();
     const pool = getVisibleCharacters();
-    if (pool.length <= 1) return;
+    if (pool.length <= 1) {
+      charWheelAccumulator = 0;
+      return;
+    }
+    const now = Date.now();
+    // Trackpads send dozens of tiny deltas (and inertia) for one gesture.
+    // Accumulate to a real notch and allow at most one switch per 180 ms.
+    if (now - charWheelLastSwitchAt < 180) {
+      charWheelAccumulator = 0;
+      return;
+    }
+    charWheelAccumulator += e.deltaY;
+    if (Math.abs(charWheelAccumulator) < 50) return;
+    const direction = charWheelAccumulator > 0 ? 1 : -1;
+    charWheelAccumulator = 0;
+    charWheelLastSwitchAt = now;
     let idx = pool.findIndex((c) => c.name === selectedChar);
     if (idx < 0) idx = 0;
-    if (e.deltaY > 0) idx = (idx + 1) % pool.length;
-    else idx = (idx - 1 + pool.length) % pool.length;
+    idx = (idx + direction + pool.length) % pool.length;
     selectChar(pool[idx].name);
   },
   {
@@ -1042,32 +1060,44 @@ hotkeyInput.addEventListener("click", () => {
 hotkeyInput.addEventListener("keydown", async (e) => {
   if (!capturingHotkey) return;
   e.preventDefault();
+  e.stopPropagation();
+  const key = e.key.toUpperCase();
+  if (key === "ESCAPE") {
+    // Escape cancels capture; it must never be registered as the toggle key.
+    capturingHotkey = false;
+    await loadCurrentHotkey();
+    return;
+  }
+  if (["CONTROL", "ALT", "SHIFT", "META"].includes(key)) return;
   let parts = [];
   if (e.ctrlKey) parts.push("Ctrl");
   if (e.altKey) parts.push("Alt");
   if (e.shiftKey) parts.push("Shift");
-  const key = e.key.toUpperCase();
-  if (!["CONTROL", "ALT", "SHIFT"].includes(key)) {
-    parts.push(key.length === 1 ? key : e.key);
-    const newHotkey = parts.join(" + ");
-    hotkeyInput.value = newHotkey;
-    capturingHotkey = false;
-    try {
-      const result = await window.overlayApi.changeHotkey(newHotkey);
-      if (result.success) showToast(t("overlay.hotkeys.prefix") + newHotkey);
-      else {
-        showToast(result.error || t("overlay.settings.failed"));
-        hotkeyInput.value = "Alt + F";
-      }
-    } catch {
-      hotkeyInput.value = "Alt + F";
+  parts.push(key.length === 1 ? key : e.key);
+  const newHotkey = parts.join(" + ");
+  hotkeyInput.value = newHotkey;
+  capturingHotkey = false;
+  try {
+    const result = await window.overlayApi.changeHotkey(newHotkey);
+    // The main process may fall back to a different accelerator; always show
+    // the value that is actually registered instead of the requested one.
+    await loadCurrentHotkey();
+    if (result.success) {
+      showToast(
+        t("overlay.hotkeys.prefix") + (result.hotkey || newHotkey),
+      );
+    } else {
+      showToast(result.error || t("overlay.settings.failed"));
     }
+  } catch {
+    await loadCurrentHotkey();
+    showToast(t("overlay.settings.failed"));
   }
 });
 hotkeyInput.addEventListener("blur", () => {
   if (capturingHotkey) {
     capturingHotkey = false;
-    hotkeyInput.value = "Alt + F";
+    loadCurrentHotkey();
   }
 });
 
@@ -2014,25 +2044,30 @@ async function openDetail(modName, { force = false, updateOnly = false } = {}) {
 }
 
 // ===== Presets =====
-async function loadPresets() {
+function setPresetSectionVisible(visible) {
   const section = document.getElementById("presetSection");
+  if (!section) return;
+  section.hidden = !visible;
+  section.style.display = visible ? "" : "none";
+}
+async function loadPresets() {
   const container = document.getElementById("presetList");
   try {
     const result = await window.overlayApi.getPresets();
     if (!result.success) {
       presets = [];
-      section.style.display = "none";
+      setPresetSectionVisible(false);
       container.innerHTML = "";
       return;
     }
     presets = Array.isArray(result.presets) ? result.presets : [];
     const activePresetId = result.activePresetId || null;
     if (presets.length === 0) {
-      section.style.display = "none";
+      setPresetSectionVisible(false);
       container.innerHTML = "";
       return;
     }
-    section.style.display = "";
+    setPresetSectionVisible(true);
     container.innerHTML = presets
       .map(
         (p) =>
@@ -2067,7 +2102,7 @@ async function loadPresets() {
     });
   } catch {
     presets = [];
-    section.style.display = "none";
+    setPresetSectionVisible(false);
     container.innerHTML = "";
   }
 }
@@ -2170,6 +2205,12 @@ window.overlayApi.onWindowHidden(() => {
   detailSideKey = null;
   activityOpenRequest++;
   detailRequestId++;
+  // Closing the overlay must not resurrect the character side panel next time.
+  bubbleSideOpen = false;
+  isPinned = false;
+  charWheelAccumulator = 0;
+  charWheelLastSwitchAt = 0;
+  document.getElementById("pinBtn")?.classList.remove("pin-active");
 });
 window.overlayApi.onSideHidden?.((data) => {
   if (data?.requestKey && data.requestKey !== detailSideKey) return;
@@ -2177,8 +2218,12 @@ window.overlayApi.onSideHidden?.((data) => {
   detailSideKey = null;
   detailRequestId++;
 });
-window.overlayApi.onWindowShown(async () => {
+window.overlayApi.onWindowShown(async (state) => {
   overlayIsOpen = true;
+  isPinned = !!state?.pinned;
+  document
+    .getElementById("pinBtn")
+    ?.classList.toggle("pin-active", isPinned);
   const request = ++activityOpenRequest;
   activityManualSelection = false;
   syncExclusiveUI();
@@ -2186,8 +2231,27 @@ window.overlayApi.onWindowShown(async () => {
   await overlayInitialization;
   if (request !== activityOpenRequest) return;
   await loadOverlaySettings();
-  // Mod directories may have changed while the overlay was hidden.
-  await loadCharacters();
+  const previousChar = selectedChar;
+  const previousMod = selectedModName;
+  const previousScrollTop =
+    document.getElementById("modList")?.scrollTop || 0;
+  // Refresh data without re-running selectChar: selectChar would clear the
+  // selected Mod and scroll position every time the overlay is shown.
+  await loadCharacters({ reloadSelectedMods: false });
+  if (selectedChar && selectedChar === previousChar) {
+    if (previousMod) {
+      await loadMods(selectedChar, {
+        silent: true,
+        focusModName: previousMod,
+        scrollTop: previousScrollTop,
+        center: false,
+      });
+    } else {
+      await loadMods(selectedChar, { silent: true });
+      const list = document.getElementById("modList");
+      if (list) list.scrollTop = previousScrollTop;
+    }
+  }
   if (request === activityOpenRequest) await focusActivityOnOpen(request);
 });
 

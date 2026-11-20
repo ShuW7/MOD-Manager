@@ -18,7 +18,7 @@ test('optional private components are copied beside the executable and included 
   assert.equal(fs.existsSync(path.join(stage, 'local-components')), false);
   const source = path.join(root, 'local-components');
   fs.mkdirSync(path.join(source, 'extra'), { recursive: true });
-  const components = ['d3d11-giml.dll', 'd3d11-nocheck.dll', 'd3d11-qaq.dll', 'd3d11-xxmi.dll'];
+  const components = ['d3d11-arknights.dll', 'd3d11-nocheck.dll', 'd3d11-qaq.dll', 'd3d11-runtime.dll'];
   for (const name of components) fs.writeFileSync(path.join(source, name), 'private fixture: ' + name);
   fs.writeFileSync(path.join(source, 'extra', 'support.bin'), 'support fixture');
   fs.mkdirSync(path.join(source, 'arknights', 'M4A'), { recursive: true });

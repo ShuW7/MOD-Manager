@@ -101,7 +101,7 @@ test('application services share current settings and preserve ordinary RAR extr
     assert.match(arknightsState.migrationError, /conflicts/);
     const warning = require(path.join(main, 'games/path-warning.cjs'));
     const installRoot = path.join(profile, 'installed');
-    for (const gameDirectory of ['XXMI/EFMI/Mods', 'Arknights/Mods', 'NEMI/Mods']) assert.equal(warning.isDangerousManagedPath(path.join(installRoot, 'data', gameDirectory), installRoot), false);
+    for (const gameDirectory of ['Arknights/Mods', 'Custom/Mods']) assert.equal(warning.isDangerousManagedPath(path.join(installRoot, 'data', gameDirectory), installRoot), false);
     assert.equal(warning.isDangerousManagedPath(path.join(installRoot, 'resources/Mods'), installRoot), true);
     assert.equal(warning.isDangerousManagedPath(path.join(installRoot, 'data-old/Mods'), installRoot), true);
     assert.deepEqual(initial.config.games.map(game => game.id), ['arknights']);

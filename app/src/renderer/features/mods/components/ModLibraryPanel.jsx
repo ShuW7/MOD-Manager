@@ -119,6 +119,7 @@ export function ModLibraryPanel({
   toggleTagFilter,
   clearTagFilters,
   batchMode,
+  setBatchMode,
   selectedMods,
   selectAllMods,
   deselectAllMods,
@@ -203,6 +204,10 @@ export function ModLibraryPanel({
         onSelect={selectLocalCollectionVariant}
       />
     );
+  }
+  function toggleBatchMode() {
+    setBatchMode((prev) => !prev);
+    if (batchMode) deselectAllMods();
   }
   function handleListScroll(event) {
     const scrollTop = event.target.scrollTop;
@@ -297,6 +302,16 @@ export function ModLibraryPanel({
           })}
         </span>
         <div className="mod-view-titlebar-actions">
+          <button
+            className={`chip sort-option ${batchMode ? "active" : ""}`}
+            onClick={toggleBatchMode}
+            aria-pressed={batchMode}
+            title={t("mods.library.selectModeHint")}
+          >
+            {batchMode
+              ? t("mods.library.exitSelectMode")
+              : t("mods.library.selectMode")}
+          </button>
           <button
             className={`chip sort-option ${exclusiveMode ? "active" : ""}`}
             onClick={toggleExclusiveMode}
@@ -555,7 +570,7 @@ export function ModLibraryPanel({
             <strong>{selectedMods.size}</strong>
             {t("common.count.itemsSuffix")}
           </span>
-          <button onClick={selectAllMods} className="btn btn-sm btn-ghost">
+          <button onClick={() => selectAllMods(visibleMods)} className="btn btn-sm btn-ghost">
             {t("common.actions.selectAll")}
           </button>
           <button onClick={deselectAllMods} className="btn btn-sm btn-ghost">
@@ -800,6 +815,12 @@ export function ModLibraryPanel({
                 onDragStart={(e) => !batchMode && handleModDragStart(e, mod)}
                 onDragEnd={handleModDragEnd}
                 onDragOver={(e) => {
+                  if (e.dataTransfer.types.includes("Files")) {
+                    // A file dropped on a row is an import, not a reorder.
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "copy";
+                    return;
+                  }
                   e.preventDefault();
                   e.dataTransfer.dropEffect = "move";
                   if (draggedMod && draggedMod.name !== mod.name) {
@@ -811,7 +832,16 @@ export function ModLibraryPanel({
                     setDragOverMod(null);
                   }
                 }}
-                onDrop={(e) => handleModDrop(e, mod)}
+                onDrop={(e) => {
+                  if (e.dataTransfer.types.includes("Files")) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDragOverMod(null);
+                    handleDirectImportDropFiles?.(e.dataTransfer.files);
+                    return;
+                  }
+                  handleModDrop(e, mod);
+                }}
                 key={mod.path}
               >
                 {batchMode ? (

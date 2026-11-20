@@ -19,42 +19,32 @@ function fixture(t) {
   return { root, write };
 }
 
-test('official launcher detection uses the game installation and preserves explicit selections', t => {
+test('official launcher detection follows the game installation and preserves explicit selections', t => {
   const { root, write } = fixture(t);
-  const nearby = write('miHoYo Launcher/launcher.exe');
+  const nearby = write('Hypergryph Launcher/launcher.exe');
   const selected = write('custom/launcher.exe');
-  const game = { id: 'genshin-impact', gamePath: write('miHoYo Launcher/games/Genshin Impact Game/YuanShen.exe') };
+  const game = { id: 'arknights', gamePath: write('Hypergryph Launcher/games/Arknights/Arknights.exe') };
   assert.equal(resolveOfficialLauncherPath(game, { roots: [root] }), nearby);
   game.officialLauncherPath = selected;
   assert.equal(resolveOfficialLauncherPath(game, { roots: [root] }), selected);
   fs.unlinkSync(selected);
   assert.equal(resolveOfficialLauncherPath(game, { roots: [root] }), '', 'a removed selection must not open another installation');
   assert.equal(isOfficialLauncherPath(game, game.gamePath), false, 'the game client is not the official launcher');
-  assert.equal(isOfficialLauncherPath(game, write('XXMI Launcher.exe')), false);
-  game.modLoaderPath = nearby;
-  assert.equal(isOfficialLauncherPath(game, nearby), false, 'never open the configured Mod loader');
 });
 
-test('official detection handles a separate launcher and the nested NTE client', t => {
+test('official launcher detection rejects executables outside the launcher folder', t => {
   const { root, write } = fixture(t);
-  const shared = write('HoYoPlay/launcher.exe');
-  for (const id of ['genshin-impact', 'zzz', 'honkai-star-rail']) {
-    assert.equal(resolveOfficialLauncherPath({ id }, { roots: [root] }), shared);
-  }
-  fs.unlinkSync(shared);
-  const hoyoplay = write('HoYoPlay/HoYoPlay.exe');
-  assert.equal(resolveOfficialLauncherPath({ id: 'genshin-impact' }, { roots: [root] }), hoyoplay);
-  assert.equal(isOfficialLauncherPath({ id: 'endfield' }, hoyoplay), false);
-  const launcher = write('Neverness To Everness/NTELauncher/NTELauncher.exe');
-  const game = { id: 'neverness-to-everness', gamePath: write('Neverness To Everness/Client/WindowsNoEditor/HT/Binaries/Win64/HTGame.exe') };
+  const game = { id: 'arknights', gamePath: write('Games/Arknights/Arknights.exe') };
+  assert.equal(resolveOfficialLauncherPath(game, { roots: [root] }), '');
+  const launcher = write('Hypergryph Launcher/launcher.exe');
   assert.equal(resolveOfficialLauncherPath(game, { roots: [root] }), launcher);
-  assert.equal(isOfficialLauncherPath(game, shared), false);
+  assert.equal(isOfficialLauncherPath({ id: 'unknown' }, launcher), true, 'launcher.exe remains the shared Hypergryph launcher name');
+  assert.equal(isOfficialLauncherPath(game, write('Hypergryph Launcher/Arknights.exe')), false);
 });
 
 test('OFFICIAL opens only the official launcher without arguments or any Mod preparation', async t => {
   const { write } = fixture(t);
   const launcher = write('official/launcher.exe');
-  const nteLauncher = write('official/NTELauncher.exe');
   let activeGame;
   let launchResult = { success: true };
   const requests = [];
@@ -83,7 +73,7 @@ test('OFFICIAL opens only the official launcher without arguments or any Mod pre
   assert.deepEqual(request.args, []);
   assert.equal(request.options.requireElevation, false);
   const count = requests.length;
-  assert.equal((await handler({}, { launchMode: 'OFFICIAL', gameId: 'endfield' })).success, false, 'reject stale game requests');
+  assert.equal((await handler({}, { launchMode: 'OFFICIAL', gameId: 'legacy-game' })).success, false, 'reject stale game requests');
   assert.equal(requests.length, count);
   launchResult = { success: false, error: 'Launch rejected by the OS' };
   assert.equal((await handler({}, { launchMode: 'OFFICIAL' })).error, launchResult.error);

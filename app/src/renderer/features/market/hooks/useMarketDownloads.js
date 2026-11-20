@@ -1,6 +1,9 @@
 import { t } from "../../../../shared/i18n/index.mjs";
 import React from "react";
-import { readAuthSession } from "../../../lib/authSession.js";
+import {
+  readAuthSession,
+  reloadAuthSession,
+} from "../../../lib/authSession.js";
 import {
   getMarketDownloadedRecord,
   recordMarketModDownload,
@@ -40,16 +43,17 @@ export function useMarketDownloads({
       return;
     }
     const session = getSavedAuthSession();
-    if (!session?.token) {
-      setDownloadPrompt({
-        type: "login_required",
-      });
-      return;
-    }
     if (!mod?.hasDirectInstall) {
       setToast({
         type: "error",
         message: t("market.downloads.noDirectLink"),
+      });
+      return;
+    }
+    if (!session?.token) {
+      setDownloadPrompt({
+        type: "login_required",
+        retry: { mod, scene },
       });
       return;
     }
@@ -185,7 +189,28 @@ export function useMarketDownloads({
     syncMods(false).catch(() => {});
   }
   function shouldShowDirectDownload(mod) {
-    return hasMarketDirectSource(mod) && Boolean(getSavedAuthSession()?.token);
+    // Keep the direct-download entry visible for anonymous users: clicking it
+    // explains that a QAQR login is required instead of hiding the feature.
+    return hasMarketDirectSource(mod);
+  }
+  async function retryDownloadAfterLogin() {
+    reloadAuthSession();
+    const session = getSavedAuthSession();
+    if (!session?.token) {
+      setToast({
+        type: "error",
+        message: t("market.downloadPrompt.stillLoggedOut"),
+      });
+      return false;
+    }
+    const retry = downloadPrompt?.retry;
+    setDownloadPrompt(null);
+    setToast({
+      type: "success",
+      message: t("market.downloadPrompt.loginDetected"),
+    });
+    if (retry?.mod) await handleDirectDownload(retry.mod, retry.scene);
+    return true;
   }
   function handleDownload(mod, downloadUrl, source, scene) {
     const downloadKey = `${getModGameId(mod)}:${String(mod?.id || "")}`;
@@ -239,6 +264,7 @@ export function useMarketDownloads({
     setDownloadPrompt,
     handleDirectDownload,
     shouldShowDirectDownload,
+    retryDownloadAfterLogin,
     handleDownload,
   };
 }

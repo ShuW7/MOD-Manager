@@ -284,10 +284,26 @@ function PresetView() {
         });
         loadPresets();
       } else {
+        const failedResults = result?.results;
+        const failedCount = Array.isArray(failedResults?.errors)
+          ? failedResults.errors.length
+          : 0;
         setToast({
           type: "error",
-          message: result.error,
+          message:
+            failedCount > 0
+              ? t("mods.presets.applyPartial", {
+                  enabled: failedResults.enabled || 0,
+                  disabled: failedResults.disabled || 0,
+                  failed: failedCount,
+                  error: result.error || t("common.errors.unknown"),
+                })
+              : result.error ||
+                t("mods.presets.applyFailed", {
+                  error: t("common.errors.unknown"),
+                }),
         });
+        if (failedCount > 0) loadPresets();
       }
     } catch (e) {
       setToast({

@@ -5,7 +5,6 @@ module.exports = {
   isExternalExtractArchivePath,
   isLargeArchiveForExternalExtraction,
   formatLargeArchiveExternalExtractMessage,
-  batchLoosePakItem,
   pushBatchItem,
   createBatchFolderItem,
   batchIsModFolder,
@@ -24,7 +23,6 @@ const archivesNames = require("../archives/names.cjs");
 const importsIntegrated = require("./integrated.cjs");
 const installAdvice = require("../install/advice.cjs");
 const installManaged = require("../install/managed.cjs");
-const modsNevernessPaks = require("../games/neverness/paks.cjs");
 const systemFiles = require("../system/files.cjs");
 const systemPaths = require("../system/paths.cjs");
 const BATCH_ARCHIVE_EXTS = new Set([".zip", ".rar", ".7z", ".exe", ".mp4"]);
@@ -49,19 +47,6 @@ function formatLargeArchiveExternalExtractMessage(filePath) {
   }), i18n.t("backend.imports.batchScan.archiveSize", {
     fileSizeLabel: installAdvice.getFileSizeLabel(filePath)
   }), i18n.t("backend.imports.batchScan.extractLargeArchiveFirst")].join("\n");
-}
-function batchLoosePakItem(filePath) {
-  const ext = modsNevernessPaks.getNevernessPakExt(path.basename(filePath));
-  if (!ext || ext === ".sig") return null;
-  const baseName = modsNevernessPaks.getNevernessPakBaseName(path.basename(filePath));
-  const dirPath = path.dirname(filePath);
-  const group = modsNevernessPaks.scanNevernessPakGroups(dirPath).find(candidate => candidate.baseName === baseName);
-  if (!group) return null;
-  return {
-    name: baseName,
-    path: dirPath,
-    type: "pak-folder"
-  };
 }
 function pushBatchItem(items, item) {
   if (!item) return false;
@@ -274,13 +259,10 @@ function batchIsModFolder(dirPath) {
     const visibleDirs = children.filter(c => c.isDirectory() && !c.name.startsWith("."));
     let hasLeafImage = false;
     return children.some(c => {
-      if (c.isDirectory() && /^paks?$/i.test(c.name)) {
-        return modsNevernessPaks.scanNevernessPakGroups(path.join(dirPath, c.name)).length > 0;
-      }
       if (c.isFile() && BATCH_IMAGE_EXTS.has(path.extname(c.name).toLowerCase())) {
         hasLeafImage = true;
       }
-      return c.isFile() && (c.name.toLowerCase().endsWith(".ini") || !!modsNevernessPaks.getNevernessPakExt(c.name));
+      return c.isFile() && c.name.toLowerCase().endsWith(".ini");
     }) || visibleDirs.length === 0 && hasLeafImage;
   } catch {
     return false;
@@ -348,7 +330,7 @@ function getMultiModPackageStats(dirPath) {
     const visibleDirs = children.filter(entry => entry.isDirectory() && !entry.name.startsWith("."));
     const visibleFiles = children.filter(entry => entry.isFile() && !entry.name.startsWith("."));
     const rootHasModFile = visibleFiles.some(entry => {
-      return entry.name.toLowerCase().endsWith(".ini") || !!modsNevernessPaks.getNevernessPakExt(entry.name);
+      return entry.name.toLowerCase().endsWith(".ini");
     });
     if (visibleDirs.length < 2 || rootHasModFile) {
       return {
@@ -454,9 +436,8 @@ function batchScanDir(dirPath, items, maxDepth = 5) {
       }
     } else if (entry.isFile()) {
       const item = batchArchiveItem(entryPath, false);
-      const loosePakItem = item ? null : batchLoosePakItem(entryPath);
-      if (item || loosePakItem) {
-        pushBatchItem(items, item || loosePakItem);
+      if (item) {
+        pushBatchItem(items, item);
         found = true;
       }
     }
@@ -496,8 +477,7 @@ function scanBatchPaths(paths) {
       }
     } else if (stat.isFile()) {
       const item = batchArchiveItem(p, true);
-      const loosePakItem = item ? null : batchLoosePakItem(p);
-      pushBatchItem(items, item || loosePakItem);
+      pushBatchItem(items, item);
     }
   }
   return items;

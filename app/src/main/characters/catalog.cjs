@@ -25,7 +25,6 @@ const {
 const {
   createCharacterImageCache
 } = require("./image-cache.cjs");
-const charactersFallbacks = require("./fallbacks.cjs");
 const charactersSkins = require("./skins.cjs");
 const coreLogger = require("../core/logger.cjs");
 const gamesSettings = require("../games/settings.cjs");
@@ -33,15 +32,7 @@ const CHARACTER_NAME_LOOKUP_CACHE = new Map();
 let characterImageCache;
 let characterCatalogService;
 function getGameCharacterResourceDir(gameId2 = gamesSettings.getActiveGameScopeId()) {
-  return {
-    arknights: "arknights",
-    "genshin-impact": "genshin-impact",
-    endfield: "endfield",
-    zzz: "zzz",
-    "wuthering-waves": "wuwa",
-    "neverness-to-everness": "neverness-to-everness",
-    "honkai-star-rail": "honkai-star-rail"
-  }[gameId2] || null;
+  return gameId2 === "arknights" ? "arknights" : null;
 }
 function getCharacterConfigForGame(gameId2 = gamesSettings.getActiveGameScopeId()) {
   const cacheKey = `config:${gameId2}`;
@@ -49,8 +40,8 @@ function getCharacterConfigForGame(gameId2 = gamesSettings.getActiveGameScopeId(
     return CHARACTER_NAME_LOOKUP_CACHE.get(cacheKey);
   }
   const fallbackConfig = {
-    defaultCharacters: charactersFallbacks.FALLBACK_DEFAULT_CHARACTERS_BY_GAME[gameId2] || [],
-    manualMappings: charactersFallbacks.FALLBACK_MANUAL_CHARACTER_MAPPINGS_BY_GAME[gameId2] || {},
+    defaultCharacters: [],
+    manualMappings: {},
     characterNameMap: {
       pairs: []
     }

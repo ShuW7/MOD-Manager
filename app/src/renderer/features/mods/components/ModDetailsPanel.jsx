@@ -81,7 +81,6 @@ export function ModDetailsPanel({
   aiNameElapsedSeconds,
   handlePinMod,
   openModSourceFolder,
-  isDx12PakMod,
   handleFixMod,
   fixRunning,
   confirmDelete,
@@ -477,7 +476,7 @@ export function ModDetailsPanel({
             </button>
             <button className="btn btn-sm" onClick={() => openModSourceFolder(selectedMod)}>
               <Icon name="folder" size={13} />
-              {isDx12PakMod(selectedMod) ? t("mods.actions.open") : t("mods.actions.openSource")}
+              {t("mods.actions.openSource")}
             </button>
             <button className="btn btn-sm" onClick={() => handleFixMod(selectedMod)} disabled={fixRunning}>
               <Icon name="wrench" size={13} />
@@ -493,7 +492,6 @@ export function ModDetailsPanel({
             modName: selectedMod.name,
             modFolderPath: selectedMod.path,
             gameId: activeGameId,
-            initialModMode: selectedMod.modType === "dx12-pak" ? "pak" : "d3d"
           })}>
                   {t("mods.actions.publish")}
                 </button>

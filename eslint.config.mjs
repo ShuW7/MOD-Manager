@@ -24,8 +24,8 @@ export default [
     rules: correctnessRules
   },
   {
-    // These functions are serialized and executed inside the site's BrowserWindow.
-    files: ['app/src/main/site-parsers.cjs', 'app/src/main/site-verification.cjs', 'app/src/preload/**/*.js'],
+    // The preload script runs with renderer globals available.
+    files: ['app/src/preload/**/*.js'],
     languageOptions: { globals: globals.browser }
   }
 ];

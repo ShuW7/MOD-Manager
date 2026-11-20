@@ -180,15 +180,6 @@ function dataTransferIncludesImage(dataTransfer) {
   }
   return false;
 }
-function notifyPakImported(detail = {}) {
-  try {
-    window.dispatchEvent(
-      new CustomEvent("qaqm-pak-imported", {
-        detail,
-      }),
-    );
-  } catch {}
-}
 export {
   getModViewStateStorageKey,
   getModViewPreferenceStorageKey,
@@ -203,7 +194,6 @@ export {
   callAppearanceSectionApi,
   ensureAppearanceApiResult,
   getExplicitImportAppearanceSectionId,
-  notifyPakImported,
   getPreviewAspectRatioStyle,
   dataTransferIncludesImage,
 };

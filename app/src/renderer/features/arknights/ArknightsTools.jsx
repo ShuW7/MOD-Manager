@@ -161,7 +161,7 @@ export function ArknightsSettings({ notify, gamePath }) {
       <Section id="arknights-tools" title={t("arknights.settings.title")}>
         {state?.migrationError && (
           <Notice kind="warning" role="alert">
-            {t("settings.mi.legacyMigrationDeferred", {
+            {t("settings.game.legacyMigrationDeferred", {
               error: state.migrationError,
             })}
           </Notice>

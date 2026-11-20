@@ -17,29 +17,16 @@ const configStore = require("../config/store.cjs");
 const coreLogger = require("../core/logger.cjs");
 const desktopNotifications = require("../desktop/notifications.cjs");
 const gamesEnvironment = require("../games/environment.cjs");
-const gamesNevernessLoader = require("../games/neverness/loader.cjs");
 const gamesSettings = require("../games/settings.cjs");
 const modsConflicts = require("../mods/conflicts.cjs");
 const modsHotkeys = require("../mods/hotkeys.cjs");
-const modsNevernessPaks = require("../games/neverness/paks.cjs");
 const overlayWindow = require("../overlay/window.cjs");
 const persistService = require("../persist/service.cjs");
 const persistTracking = require("../persist/tracking.cjs");
 const systemFiles = require("../system/files.cjs");
 const systemPaths = require("../system/paths.cjs");
 function readCharacterDirectoryStatus(gameId2) {
-  if (!gamesNevernessLoader.isNevernessDx12Mode(gameId2)) return gamesSettings.getModsPathStatus();
-  const modsPath = gamesNevernessLoader.getNevernessDx12Paths(gameId2).pakModsDir;
-  if (!modsPath) return {
-    ok: false,
-    code: "MODS_PATH_NOT_SET",
-    error: i18n.t("backend.ipc.characters.nevernessDirectoryMissing")
-  };
-  // An absent Pak directory is an empty list, not a reason to create folders.
-  return {
-    ok: true,
-    modsPath
-  };
+  return gamesSettings.getModsPathStatus(gameId2);
 }
 async function readCurrentCharacters() {
   try {
@@ -66,7 +53,7 @@ function buildCharacterDisablePlan(characterName, gameId) {
   const aliases = new Set(charactersCatalog.getCharacterAliasCandidates(canonical, gameId).map(charactersCatalog.normalizeCharacterFolderKey));
   const plan = [];
   const seen = new Set();
-  const scanRoot = (root, pakPaths = null) => {
+  const scanRoot = (root) => {
     if (!root || !fs.existsSync(root)) return;
     if (fs.lstatSync(root).isSymbolicLink()) throw new Error(i18n.t("backend.hiddenCharacters.linkedDirectory", {
       root
@@ -83,35 +70,28 @@ function buildCharacterDisablePlan(characterName, gameId) {
       for (const mod of fs.readdirSync(charPath, {
         withFileTypes: true
       })) {
-        if (!pakPaths && /^DISABLED_/i.test(mod.name)) continue;
+        if (/^DISABLED_/i.test(mod.name)) continue;
         if (mod.isSymbolicLink()) throw new Error(i18n.t("backend.ipc.characters.linkedMod", {
           name: mod.name
         }));
         if (!mod.isDirectory()) continue;
         const from = path.join(charPath, mod.name);
-        if (pakPaths && !modsNevernessPaks.getNevernessDx12ModDirectoryInfo(from, pakPaths)) continue;
         const key = path.resolve(from).toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
-        const to = pakPaths ? path.join(modsNevernessPaks.getNevernessDx12DisabledCharacterPath(canonical, pakPaths, {
-          gameId
-        }), mod.name.replace(/^DISABLED_/i, "")) : path.join(charPath, `DISABLED_${mod.name}`);
+        const to = path.join(charPath, `DISABLED_${mod.name}`);
         plan.push({
           from,
-          to,
-          pak: !!pakPaths
+          to
         });
       }
     }
   };
   const modsPath = gamesSettings.getModsPath(gameId);
-  const pakPaths = gameId === gamesNevernessLoader.NEVERNESS_GAME_ID ? gamesNevernessLoader.getNevernessDx12Paths(gameId) : null;
-  const pakRoots = new Set(Object.values(pakPaths?.pakModsDirs || {}).filter(Boolean).map(root => path.resolve(root).toLowerCase()));
-  if (modsPath && !pakRoots.has(path.resolve(modsPath).toLowerCase())) {
+  if (modsPath) {
     scanRoot(modsPath);
     for (const container of charactersOrganization.LEGACY_CHARACTER_CONTAINER_NAMES) scanRoot(path.join(modsPath, container));
   }
-  if (pakPaths) for (const root of Object.values(pakPaths.pakModsDirs)) scanRoot(root, pakPaths);
   return plan;
 }
 function registerIpc() {
@@ -202,7 +182,7 @@ function registerIpc() {
       skins
     };
     try {
-      const modsPath = gamesNevernessLoader.isNevernessDx12Mode(gameId) ? gamesNevernessLoader.getNevernessDx12Paths(gameId).pakModsDir : gamesSettings.getModsPath(gameId);
+      const modsPath = gamesSettings.getModsPath(gameId);
       const added = result.success && modsPath && fs.existsSync(modsPath) ? charactersDirectories.ensureDefaultCharacterFolders(modsPath, gameId).createdCount : 0;
       desktopNotifications.notifyCharacterListChanged("__all__", {
         gameId,
@@ -235,16 +215,6 @@ function registerIpc() {
         error: status.error,
         code: status.code
       };
-      if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-        return {
-          success: true,
-          legacyImport: {
-            hasCandidates: false
-          },
-          looseRootFolders: null,
-          misplacedModFolders: null
-        };
-      }
       return {
         success: true,
         ...charactersDirectories.buildCharacterOrganizePreview(status.modsPath, gameId2)
@@ -328,12 +298,18 @@ function registerIpc() {
   });
   electron.ipcMain.handle("save-character-order", async (_, characterOrder) => {
     try {
-      gamesSettings.setScopedCharacterOrder(characterOrder);
+      if (!gamesSettings.setScopedCharacterOrder(characterOrder)) {
+        return {
+          success: false,
+          error: i18n.t("backend.ipc.settings.saveSettingsFailed")
+        };
+      }
       return {
         success: true
       };
     } catch (error) {
       return {
+        success: false,
         error: error.message
       };
     }
@@ -347,13 +323,21 @@ function registerIpc() {
         configStore.currentConfig.modOrders = {};
       }
       const canonicalCharacterName = charactersDirectories.getCanonicalCharacterConfigKey(characterName);
+      const previous = configStore.currentConfig.modOrders[canonicalCharacterName];
       configStore.currentConfig.modOrders[canonicalCharacterName] = modOrder;
-      configStore.saveConfig(configStore.currentConfig);
+      if (!configStore.saveConfig(configStore.currentConfig)) {
+        if (previous === undefined) delete configStore.currentConfig.modOrders[canonicalCharacterName];else configStore.currentConfig.modOrders[canonicalCharacterName] = previous;
+        return {
+          success: false,
+          error: i18n.t("backend.ipc.settings.saveSettingsFailed")
+        };
+      }
       return {
         success: true
       };
     } catch (error) {
       return {
+        success: false,
         error: error.message
       };
     }
@@ -365,26 +349,18 @@ function registerIpc() {
     try {
       const gameId2 = gamesSettings.getActiveGameScopeId();
       name = charactersSkins.assertSafeAppearancePathSegment(name, i18n.t("backend.validation.characterName"));
-      let charPath;
-      if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-        gamesNevernessLoader.ensureNevernessDx12GamePaths(gameId2);
-        charPath = modsNevernessPaks.getNevernessDx12CharacterPath(name, {
-          gameId: gameId2
-        });
-      } else {
-        const modsPathStatus = gamesSettings.getModsPathStatus({
-          gameId: gameId2
-        });
-        if (!modsPathStatus.ok) return {
-          error: modsPathStatus.error,
-          code: modsPathStatus.code
+      const modsPathStatus = gamesSettings.getModsPathStatus({
+        gameId: gameId2
+      });
+      if (!modsPathStatus.ok) return {
+        error: modsPathStatus.error,
+        code: modsPathStatus.code
+      };
+      const charPath = path.join(modsPathStatus.modsPath, name);
+      if (!systemPaths.isPathInsideDirectory(charPath, modsPathStatus.modsPath)) {
+        return {
+          error: i18n.t("backend.characters.directories.invalidCharacterPath")
         };
-        charPath = path.join(modsPathStatus.modsPath, name);
-        if (!systemPaths.isPathInsideDirectory(charPath, modsPathStatus.modsPath)) {
-          return {
-            error: i18n.t("backend.characters.directories.invalidCharacterPath")
-          };
-        }
       }
       if (charactersDirectories.resolveCharacterEntry(name, gameId2) || fs.existsSync(charPath)) {
         return {
@@ -437,25 +413,16 @@ function registerIpc() {
       const gameId2 = gamesSettings.getActiveGameScopeId();
       characterName = charactersSkins.assertSafeAppearancePathSegment(characterName, i18n.t("backend.validation.characterName"));
       let characterPaths = [];
-      if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-        const paths = gamesNevernessLoader.getNevernessDx12Paths(gameId2);
-        characterPaths = [modsNevernessPaks.getNevernessDx12CharacterPath(characterName, {
-          gameId: gameId2
-        }), modsNevernessPaks.getNevernessDx12DisabledCharacterPath(characterName, paths, {
-          gameId: gameId2
-        })];
-      } else {
-        const modsPathStatus = gamesSettings.getModsPathStatus({
-          gameId: gameId2
-        });
-        if (!modsPathStatus.ok) {
-          return {
-            error: modsPathStatus.error,
-            code: modsPathStatus.code
-          };
-        }
-        characterPaths = [charactersDirectories.resolveCharacterPath(characterName, gameId2) || path.join(modsPathStatus.modsPath, characterName)];
+      const modsPathStatus = gamesSettings.getModsPathStatus({
+        gameId: gameId2
+      });
+      if (!modsPathStatus.ok) {
+        return {
+          error: modsPathStatus.error,
+          code: modsPathStatus.code
+        };
       }
+      characterPaths = [charactersDirectories.resolveCharacterPath(characterName, gameId2) || path.join(modsPathStatus.modsPath, characterName)];
       characterPaths = Array.from(new Set(characterPaths.filter(Boolean))).filter(targetPath => fs.existsSync(targetPath));
       if (characterPaths.length === 0) {
         return {
@@ -525,49 +492,23 @@ function registerIpc() {
       };
       const previousCatalogEntry = charactersSkins.getCharacterSkinCatalogEntry(oldName, gameId2);
       const previousCatalogIdentity = charactersSkins.getPersistedCharacterSkinCatalogIdentity(oldName, gameId2) || previousCatalogEntry?.nameZh || previousCatalogEntry?.nameEn || previousCatalogEntry?.characterId || "";
-      const resolvedEntry = charactersDirectories.resolveCharacterEntry(oldName, gameId2);
-      const mappingEntry = charactersCatalog.getCharacterMappingEntry(oldName, gameId2);
-      if (gameId2 === "wuthering-waves" && resolvedEntry?.diskName && mappingEntry) {
+      let renamePairs = [];
+      const modsPathStatus = gamesSettings.getModsPathStatus({
+        gameId: gameId2
+      });
+      if (!modsPathStatus.ok) {
         return {
-          error: i18n.t("backend.ipc.characters.wuwaMappedCharacterRenameUnsupported")
+          error: modsPathStatus.error,
+          code: modsPathStatus.code
         };
       }
-      let renamePairs = [];
-      if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-        const paths = gamesNevernessLoader.getNevernessDx12Paths(gameId2);
-        renamePairs = [{
-          oldPath: modsNevernessPaks.getNevernessDx12CharacterPath(oldName, {
-            gameId: gameId2
-          }),
-          newPath: modsNevernessPaks.getNevernessDx12CharacterPath(trimmed, {
-            gameId: gameId2
-          })
-        }, {
-          oldPath: modsNevernessPaks.getNevernessDx12DisabledCharacterPath(oldName, paths, {
-            gameId: gameId2
-          }),
-          newPath: modsNevernessPaks.getNevernessDx12DisabledCharacterPath(trimmed, paths, {
-            gameId: gameId2
-          })
-        }].filter(pair => pair.oldPath && fs.existsSync(pair.oldPath));
-      } else {
-        const modsPathStatus = gamesSettings.getModsPathStatus({
-          gameId: gameId2
-        });
-        if (!modsPathStatus.ok) {
-          return {
-            error: modsPathStatus.error,
-            code: modsPathStatus.code
-          };
-        }
-        const {
-          modsPath
-        } = modsPathStatus;
-        renamePairs = [{
-          oldPath: charactersDirectories.resolveCharacterPath(oldName, gameId2) || path.join(modsPath, oldName),
-          newPath: path.join(modsPath, trimmed)
-        }].filter(pair => pair.oldPath && fs.existsSync(pair.oldPath));
-      }
+      const {
+        modsPath
+      } = modsPathStatus;
+      renamePairs = [{
+        oldPath: charactersDirectories.resolveCharacterPath(oldName, gameId2) || path.join(modsPath, oldName),
+        newPath: path.join(modsPath, trimmed)
+      }].filter(pair => pair.oldPath && fs.existsSync(pair.oldPath));
       if (renamePairs.length === 0) return {
         error: i18n.t("backend.ipc.characters.characterMissing")
       };
@@ -606,9 +547,6 @@ function registerIpc() {
           configStore.currentConfig.characterOrdersByGame = {};
         }
         configStore.currentConfig.characterOrdersByGame[gameId2] = scopedCharacterOrder.map(c => c === oldName ? trimmed : c);
-        if (gameId2 === "endfield") {
-          configStore.currentConfig.characterOrder = configStore.currentConfig.characterOrdersByGame[gameId2];
-        }
       }
       if (configStore.currentConfig.modOrders) {
         const oldModOrder = charactersDirectories.getCharacterConfigStoreValue(configStore.currentConfig.modOrders, oldName, [], gameId2).value;

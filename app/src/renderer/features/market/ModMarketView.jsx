@@ -8,7 +8,7 @@ import { MarketToolbar } from "./components/MarketToolbar.jsx";
 import { MarketHeader } from "./components/MarketHeader.jsx";
 import React from "react";
 import ReactDOM from "react-dom";
-import { readAuthSession } from "../../lib/authSession.js";
+import { readAuthSession, reloadAuthSession } from "../../lib/authSession.js";
 import {
   getCanonicalClientId,
   getCachedClientId,
@@ -79,7 +79,7 @@ function ModMarketView({
   onPendingDetailConsumed,
   sourceTabs,
 }) {
-  const initialMarketGameId = activeGameId || "endfield";
+  const initialMarketGameId = activeGameId || "arknights";
   const marketVisibleRef = React.useRef(isActive);
   marketVisibleRef.current = isActive;
   React.useEffect(
@@ -135,7 +135,7 @@ function ModMarketView({
     () =>
       initialMarketSessionCache?.filters?.selectedGameId ||
       activeGameId ||
-      "endfield",
+      "arknights",
   );
   const [selectedCharacter, setSelectedCharacter] = React.useState(
     () => initialMarketSessionCache?.filters?.selectedCharacter || "all",
@@ -207,6 +207,7 @@ function ModMarketView({
   const infiniteScrollRef = React.useRef(infiniteScroll);
   const marketScrollFiltersRef = React.useRef(null);
   const skipNextFilterPageResetRef = React.useRef(false);
+  const filterPageResetReadyRef = React.useRef(false);
   const pendingMarketRestoreRef = React.useRef(null);
   const marketRestoreTimerRef = React.useRef(null);
   const marketWarmupTimerRef = React.useRef(null);
@@ -289,7 +290,7 @@ function ModMarketView({
   }, [visibleGameIds, selectedGameId, activeGameId, detailMod]);
   const marketGameId = gameOptions.some((game) => game.id === selectedGameId)
     ? selectedGameId
-    : activeGameId || "endfield";
+    : activeGameId || "arknights";
   const { silentlyRefreshMarket, syncMods } = useMarketSync({
     isActive,
     marketGameId,
@@ -319,6 +320,7 @@ function ModMarketView({
     setDownloadPrompt,
     handleDirectDownload,
     shouldShowDirectDownload,
+    retryDownloadAfterLogin,
     handleDownload,
   } = useMarketDownloads({
     serverUrl,
@@ -739,6 +741,12 @@ function ModMarketView({
     };
   }, [displayedMods.length, modMarketCardScale, equalRowHeight]);
   React.useEffect(() => {
+    if (!filterPageResetReadyRef.current) {
+      // The first run is the mount effect; currentPage may have been restored
+      // from the cached snapshot and must not be forced back to page 1.
+      filterPageResetReadyRef.current = true;
+      return;
+    }
     if (skipNextFilterPageResetRef.current) {
       skipNextFilterPageResetRef.current = false;
       return;
@@ -1316,7 +1324,7 @@ function ModMarketView({
                   })
                 : t("market.filters.sharedModHint"),
             })}
-            <span title={(mod.modMode || "d3d") === "pak" ? "Pak Mod" : "3dm Mod"}>
+            <span title={"3dm Mod"}>
               {getModModeLabel(mod.modMode || "d3d")}
             </span>
             {mod._isCollectionCard && collectionVariants.length > 1 ? (
@@ -1375,6 +1383,10 @@ function ModMarketView({
     );
   }
   const marketReady = serverUrl && !loading && !marketIsBooting && !error;
+  const marketAccessBlocked =
+    syncStatus?.refreshBlocked === true ||
+    (syncStatus?.marketAccess?.controlled === true &&
+      syncStatus?.marketAccess?.allowed === false);
   return (
     <div className="page mod-market-container">
       <MarketHeader
@@ -1468,22 +1480,62 @@ function ModMarketView({
               <div className="empty-state mod-market-no-results">
                 <div className="empty-face">{"QAQ"}</div>
                 <div className="empty-title">
-                  {t("market.status.noMatchingMods")}
+                  {marketAccessBlocked
+                    ? t("market.status.accessRequired")
+                    : t("market.status.noMatchingMods")}
                 </div>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setSelectedTags([]);
-                    setSelectedCharacter("all");
-                    setSelectedGameVersion("all");
-                    setSelectedModMode("all");
-                    setLikedOnly(false);
-                  }}
-                >
-                  {t("market.filters.clearFilters")}
-                </button>
+                {marketAccessBlocked ? (
+                  <React.Fragment>
+                    <p className="empty-text">
+                      {t("market.status.accessRequiredHint")}
+                    </p>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 8,
+                        justifyContent: "center",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() =>
+                          window.api.openExternalUrl(
+                            "https://www.qaqm.top/market",
+                          )
+                        }
+                      >
+                        {t("market.downloadPrompt.openLogin")}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => {
+                          reloadAuthSession();
+                          syncMods(false);
+                        }}
+                      >
+                        {t("market.downloadPrompt.recheckLogin")}
+                      </button>
+                    </div>
+                  </React.Fragment>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setSelectedTags([]);
+                      setSelectedCharacter("all");
+                      setSelectedGameVersion("all");
+                      setSelectedModMode("all");
+                      setLikedOnly(false);
+                    }}
+                  >
+                    {t("market.filters.clearFilters")}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1640,6 +1692,10 @@ function ModMarketView({
         downloadPrompt={downloadPrompt}
         isActive={isActive}
         setDownloadPrompt={setDownloadPrompt}
+        onRecheckLogin={retryDownloadAfterLogin}
+        onOpenWebsite={() =>
+          window.api.openExternalUrl("https://www.qaqm.top/market")
+        }
       />
       <ModFeedbackModal
         open={isActive && !!feedbackTargetMod}

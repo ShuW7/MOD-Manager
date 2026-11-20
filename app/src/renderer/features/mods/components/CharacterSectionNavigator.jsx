@@ -2,6 +2,7 @@ import { t } from "../../../../shared/i18n/index.mjs";
 import React from "react";
 import ReactDOM from "react-dom";
 import { Icon } from "../../../components/Icon.jsx";
+import { RecoverableImage } from "../../../components/RecoverableImage.jsx";
 import {
   isBaseSection,
   isCustomSection,
@@ -16,7 +17,6 @@ function SectionCover({
   className = "appearance-section-cover",
 }) {
   const coverUrl = section?.coverUrl || section?.imageUrl || section?.image;
-  const [failedUrl, setFailedUrl] = React.useState(null);
   const fallback = isBaseSection(section)
     ? "user"
     : isCustomSection(section)
@@ -24,17 +24,13 @@ function SectionCover({
       : "shirt";
   return (
     <span className={className} aria-hidden={decorative || void 0}>
-      {coverUrl && failedUrl !== coverUrl ? (
-        <img
-          src={coverUrl}
-          alt=""
-          draggable={false}
-          referrerPolicy="no-referrer"
-          onError={() => setFailedUrl(coverUrl)}
-        />
-      ) : (
-        <Icon name={fallback} size={13} />
-      )}
+      <RecoverableImage
+        src={coverUrl}
+        alt=""
+        draggable={false}
+        referrerPolicy="no-referrer"
+        fallback={<Icon name={fallback} size={13} />}
+      />
     </span>
   );
 }
@@ -339,7 +335,10 @@ function CharacterSectionNavigator({
     return result;
   }, [sections]);
   const officialSkinCount = normalizedSections.filter(
-    (section) => !isBaseSection(section) && !isCustomSection(section) && section.kind !== "shared",
+    (section) =>
+      !isBaseSection(section) &&
+      !isCustomSection(section) &&
+      section.kind !== "shared",
   ).length;
   const otherEnabledSections = normalizedSections.filter(
     (section) =>
@@ -490,7 +489,10 @@ function CharacterSectionNavigator({
         )}
       </div>
       {otherEnabledCount > 0 && (
-        <div className="notice notice-info appearance-section-enabled-notice" role="status">
+        <div
+          className="notice notice-info appearance-section-enabled-notice"
+          role="status"
+        >
           <Icon name="info" size={14} />
           <span>
             {t("mods.sections.otherEnabledPrefix")}

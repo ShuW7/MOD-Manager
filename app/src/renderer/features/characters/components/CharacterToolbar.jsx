@@ -1,7 +1,6 @@
 import { t } from "../../../../shared/i18n/index.mjs";
 import React from "react";
 import { Icon } from "../../../components/Icon.jsx";
-import { Menu, MenuItem } from "../../../components/Menu.jsx";
 export function CharacterToolbar({
   visibleCharacters,
   characters,
@@ -12,12 +11,6 @@ export function CharacterToolbar({
   missingPath,
   handleIntegratedPackageImportClick,
   renderToolbarActions,
-  isNeverness,
-  nevernessMode,
-  handleSwitchNevernessMode,
-  dx12Busy,
-  nevernessDx12Status,
-  handleOpenDx12PakFolder,
   searchQuery,
   setSearchQuery,
   scope = "characters",
@@ -53,8 +46,6 @@ export function CharacterToolbar({
         </span>
       </div>
       <div className="page-actions">
-        {renderToolbarActions()}
-        <span className="toolbar-divider" aria-hidden={true} />
         <div
           className="character-import-actions"
           role="group"
@@ -66,32 +57,19 @@ export function CharacterToolbar({
             onClick={handleBatchImportClick}
             disabled={loading || missingPath}
           >
-            <Icon name="plus" size={15} strokeWidth={2.2} />
+            <Icon name="archive" size={18} />
             {t("characters.import.batchTitle")}
           </button>
-          <Menu
-            label={t("characters.import.moreTitle")}
-            trigger={({ props }) => (
-              <button
-                {...props}
-                type="button"
-                className="btn elevated-action-btn character-import-more"
-                aria-label={t("characters.import.moreTitle")}
-                title={t("characters.import.moreTitle")}
-                disabled={loading || missingPath}
-              >
-                <Icon name="chevron-down" size={15} />
-              </button>
-            )}
+          <button
+            type="button"
+            className="btn elevated-action-btn"
+            onClick={handleIntegratedPackageImportClick}
+            disabled={loading || missingPath}
           >
-            <MenuItem
-              icon="archive"
-              onClick={handleIntegratedPackageImportClick}
-            >
-              {t("characters.import.integratedTitle")}
-            </MenuItem>
-          </Menu>
+            {t("characters.import.integratedTitle")}
+          </button>
         </div>
+        {renderToolbarActions()}
       </div>
       <div className="page-toolbar character-toolbar-controls">
         <div className="search-field character-search-box">
@@ -119,59 +97,20 @@ export function CharacterToolbar({
             </button>
           )}
         </div>
-        {isNeverness && (
-          <div
-            className={`character-sort-group ${nevernessMode === "dx12" ? "is-pak" : ""}`}
-          >
-            <span className="toolbar-label character-sort-label">
-              {t("characters.mode.title")}
-            </span>
-            <div className="segmented">
-              <button
-                type="button"
-                className={`character-sort-option ${nevernessMode !== "dx12" ? "active" : ""}`}
-                onClick={() => handleSwitchNevernessMode("nemi")}
-                disabled={dx12Busy}
-                title={t("characters.mode.dx11Hint")}
-              >
-                {"NEMI"}
-              </button>
-              <button
-                type="button"
-                className={`character-sort-option ${nevernessMode === "dx12" ? "active" : ""}`}
-                onClick={() => handleSwitchNevernessMode("dx12")}
-                disabled={dx12Busy}
-                title={t("characters.mode.pakHint", {
-                  pakDirName: nevernessDx12Status?.paths?.pakDirName || "MOD",
-                })}
-              >
-                {"Pak"}
-              </button>
-            </div>
-            {nevernessMode === "dx12" && (
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm character-sort-option"
-                onClick={handleOpenDx12PakFolder}
-                disabled={dx12Busy}
-                title={t("characters.mode.pakDirectoryHint", {
-                  pakDirName: nevernessDx12Status?.paths?.pakDirName || "MOD",
-                })}
-              >
-                <Icon name="folder" size={14} />
-                {t("characters.mode.openPakDirectory", {
-                  pakDirName: nevernessDx12Status?.paths?.pakDirName || "MOD",
-                })}
-              </button>
-            )}
-          </div>
-        )}
         {scope !== "shared" && (
           <div className="character-sort-group">
-            <div className="segmented" role="group" aria-label={t("common.fields.display")}>
+            <div
+              className="segmented"
+              role="group"
+              aria-label={t("common.fields.display")}
+            >
+              <span className="segment-label">
+                {t("common.fields.display")}
+              </span>
               <button
                 type="button"
                 className={`character-sort-option ${!showAllCharacters ? "active" : ""}`}
+                aria-pressed={!showAllCharacters}
                 onClick={() => setShowAllCharacters(false)}
                 title={t("characters.filter.withContentHint")}
               >
@@ -180,6 +119,7 @@ export function CharacterToolbar({
               <button
                 type="button"
                 className={`character-sort-option ${showAllCharacters ? "active" : ""}`}
+                aria-pressed={showAllCharacters}
                 onClick={() => setShowAllCharacters(true)}
                 title={t("characters.filter.allHint")}
               >
@@ -190,10 +130,16 @@ export function CharacterToolbar({
         )}
         {scope !== "shared" && (
           <div className="character-sort-group">
-            <div className="segmented" role="group" aria-label={t("common.fields.sort")}>
+            <div
+              className="segmented"
+              role="group"
+              aria-label={t("common.fields.sort")}
+            >
+              <span className="segment-label">{t("common.fields.sort")}</span>
               <button
                 type="button"
                 className={`character-sort-option ${sortMethod === "common" ? "active" : ""}`}
+                aria-pressed={sortMethod === "common"}
                 onClick={() => setSortMethod("common")}
                 title={t("characters.sort.usageHint")}
               >
@@ -202,6 +148,7 @@ export function CharacterToolbar({
               <button
                 type="button"
                 className={`character-sort-option ${sortMethod === "modCount" ? "active" : ""}`}
+                aria-pressed={sortMethod === "modCount"}
                 onClick={() => setSortMethod("modCount")}
                 title={t("characters.sort.modCountHint")}
               >
@@ -210,6 +157,7 @@ export function CharacterToolbar({
               <button
                 type="button"
                 className={`character-sort-option ${sortMethod === "name" ? "active" : ""}`}
+                aria-pressed={sortMethod === "name"}
                 onClick={() => setSortMethod("name")}
                 title={t("characters.sort.nameHint")}
               >

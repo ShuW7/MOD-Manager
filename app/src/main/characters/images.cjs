@@ -18,9 +18,7 @@ const fs = require("fs");
 const { pathToFileURL } = require("node:url");
 const charactersCatalog = require("./catalog.cjs");
 const charactersSkins = require("./skins.cjs");
-const gamesNevernessLoader = require("../games/neverness/loader.cjs");
 const gamesSettings = require("../games/settings.cjs");
-const modsNevernessPaks = require("../games/neverness/paks.cjs");
 const IMAGES_PATH = path.join(electron.app.getPath("userData"), "images");
 function getScopedCharacterImagesDir(characterName, gameId2 = gamesSettings.getActiveGameScopeId()) {
   const safeGameId = charactersSkins.assertSafeAppearancePathSegment(gameId2 || "default", i18n.t("backend.validation.gameId"));
@@ -102,20 +100,6 @@ function findCharacterCoverFilePath(characterName, gameId2 = gamesSettings.getAc
     if (legacyCoverPath) return legacyCoverPath;
   }
   if (modsPath) {
-    if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-      for (const alias of pathAliases) {
-        const paths = gamesNevernessLoader.getNevernessDx12Paths(gameId2);
-        const dx12CharacterPaths = [path.join(modsPath, alias), modsNevernessPaks.getNevernessDx12DisabledCharacterPath(alias, paths, {
-          gameId: gameId2
-        })].filter(Boolean);
-        for (const dx12CharacterPath of dx12CharacterPaths) {
-          const dx12RootCoverPath = findImageFileInDir(dx12CharacterPath);
-          if (dx12RootCoverPath) return dx12RootCoverPath;
-          const dx12ModCoverPath = findImageFileInChildDirs(dx12CharacterPath);
-          if (dx12ModCoverPath) return dx12ModCoverPath;
-        }
-      }
-    }
     for (const alias of pathAliases) {
       const modCoverPath = findImageFileInDir(path.join(modsPath, alias), {
         requireCoverPrefix: true

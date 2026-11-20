@@ -15,6 +15,7 @@ module.exports = {
   getCharacterModCacheKeys,
   trackCharacterUsage,
   ensureDefaultCharacterFolders,
+  getCharacterDirectoryBasePath,
   buildLegacyImportResponse,
   buildCharacterRefreshResponse,
   buildCharacterOrganizePreview
@@ -23,24 +24,25 @@ const path = require("path");
 const fs = require("fs");
 const charactersCatalog = require("./catalog.cjs");
 const charactersCleanup = require("./cleanup.cjs");
-const charactersFallbacks = require("./fallbacks.cjs");
 const charactersHidden = require("./hidden.cjs");
 const charactersImages = require("./images.cjs");
 const charactersOrganization = require("./organization.cjs");
 const charactersSkins = require("./skins.cjs");
 const configStore = require("../config/store.cjs");
-const gamesNevernessLoader = require("../games/neverness/loader.cjs");
 const gamesSettings = require("../games/settings.cjs");
-const modsNevernessPaks = require("../games/neverness/paks.cjs");
 const systemPaths = require("../system/paths.cjs");
 const systemWindows = require("../system/windows.cjs");
-function mergeCharacterDirectoryStats(primaryStats, secondaryStats) {
-  return {
-    modCount: Number(primaryStats?.modCount || 0) + Number(secondaryStats?.modCount || 0),
-    enabledCount: Number(primaryStats?.enabledCount || 0),
-    fileCount: Number(primaryStats?.fileCount || 0) + Number(secondaryStats?.fileCount || 0),
-    hasInfoJson: !!primaryStats?.hasInfoJson || !!secondaryStats?.hasInfoJson
-  };
+
+// The character library is always the game's configured Mods folder. Keeping
+// this in one place means a future game mode (for example a different package
+// layout) only has to change this function instead of every caller.
+function getCharacterDirectoryBasePath(modsPath, _gameId = gamesSettings.getActiveGameScopeId(), {
+  ensure = false
+} = {}) {
+  if (ensure && modsPath && !fs.existsSync(modsPath)) fs.mkdirSync(modsPath, {
+    recursive: true
+  });
+  return modsPath || "";
 }
 const CHARACTER_DIRECTORY_STATS_CACHE = new Map();
 function getCharacterDirectoryStats(characterRootPath) {
@@ -49,16 +51,9 @@ function getCharacterDirectoryStats(characterRootPath) {
       withFileTypes: true
     });
     const stat = fs.statSync(characterRootPath);
-    const cacheKey = `${gamesSettings.getActiveGameScopeId()}|${characterRootPath}|${stat.mtimeMs}|${entries.length}|${gamesNevernessLoader.isNevernessDx12Mode() ? "dx12" : "std"}`;
+    const cacheKey = `${gamesSettings.getActiveGameScopeId()}|${characterRootPath}|${stat.mtimeMs}|${entries.length}`;
     if (CHARACTER_DIRECTORY_STATS_CACHE.has(cacheKey)) return CHARACTER_DIRECTORY_STATS_CACHE.get(cacheKey);
-    const modDirs = entries.filter(entry => {
-      if (!entry.isDirectory()) return false;
-      if (gamesNevernessLoader.isNevernessDx12Mode()) {
-        if (entry.name.startsWith(".")) return false;
-        return modsNevernessPaks.hasShallowNevernessPakGroup(path.join(characterRootPath, entry.name));
-      }
-      return true;
-    });
+    const modDirs = entries.filter(entry => entry.isDirectory() && !entry.name.startsWith("."));
     const stats = {
       modCount: modDirs.length,
       enabledCount: modDirs.filter(entry => !entry.name.startsWith("DISABLED_")).length,
@@ -95,21 +90,16 @@ function compareCharacterDirectoryEntries(left, right) {
   return rightKey.localeCompare(leftKey);
 }
 function listCharacterDirectories(modsPath, gameId2 = gamesSettings.getActiveGameScopeId()) {
-  const characterBasePath = modsNevernessPaks.getCharacterDirectoryBasePath(modsPath, gameId2);
+  const characterBasePath = getCharacterDirectoryBasePath(modsPath, gameId2);
   if (!characterBasePath || !fs.existsSync(characterBasePath)) return [];
   const entries = fs.readdirSync(characterBasePath, {
     withFileTypes: true
   });
-  const foreignDefaults = getForeignDefaultCharacters(gameId2);
-  const nevernessDx12Paths = gamesNevernessLoader.isNevernessDx12Mode(gameId2) ? gamesNevernessLoader.getNevernessDx12Paths(gameId2) : null;
   const deduped = new Map();
-  entries.filter(entry => entry.isDirectory() && !entry.name.startsWith(".") && !charactersOrganization.isLegacyCharacterContainerName(entry.name) && !shouldHideForeignDefaultCharacterFolder(characterBasePath, entry.name, gameId2, foreignDefaults)).forEach(entry => {
+  entries.filter(entry => entry.isDirectory() && !entry.name.startsWith(".") && !charactersOrganization.isLegacyCharacterContainerName(entry.name)).forEach(entry => {
     const mappingEntry = charactersCatalog.getCharacterMappingEntry(entry.name, gameId2);
     const characterRootPath = path.join(characterBasePath, entry.name);
-    const disabledCharacterPath = nevernessDx12Paths ? modsNevernessPaks.getNevernessDx12DisabledCharacterPath(mappingEntry?.displayName || entry.name, nevernessDx12Paths, {
-      gameId: gameId2
-    }) : "";
-    const stats = disabledCharacterPath && fs.existsSync(disabledCharacterPath) ? mergeCharacterDirectoryStats(getCharacterDirectoryStats(characterRootPath), getCharacterDirectoryStats(disabledCharacterPath)) : getCharacterDirectoryStats(characterRootPath);
+    const stats = getCharacterDirectoryStats(characterRootPath);
     const characterEntry = {
       displayName: mappingEntry?.displayName || entry.name,
       diskName: entry.name,
@@ -126,7 +116,7 @@ function listCharacterDirectories(modsPath, gameId2 = gamesSettings.getActiveGam
   return Array.from(deduped.values());
 }
 function sortCharacterEntries(entries, gameId2 = gamesSettings.getActiveGameScopeId()) {
-  const customOrder = Array.isArray(configStore.currentConfig.characterOrdersByGame?.[gameId2]) ? configStore.currentConfig.characterOrdersByGame[gameId2] : gameId2 === "endfield" && Array.isArray(configStore.currentConfig.characterOrder) ? configStore.currentConfig.characterOrder : [];
+  const customOrder = Array.isArray(configStore.currentConfig.characterOrdersByGame?.[gameId2]) ? configStore.currentConfig.characterOrdersByGame[gameId2] : [];
   const orderIndex = new Map(customOrder.map((name, index) => [charactersCatalog.normalizeCharacterFolderKey(name), index]));
   return [...entries].sort((left, right) => {
     const leftIndex = orderIndex.get(charactersCatalog.normalizeCharacterFolderKey(left.displayName));
@@ -147,7 +137,7 @@ function resolveCharacterEntryDirect(characterName, gameId2 = gamesSettings.getA
   if (!charactersSkins.isSafeAppearancePathSegment(characterName)) return null;
   const modsPath = gamesSettings.getModsPath(gameId2);
   if (gameId2 === "arknights") require("../games/arknights/service.cjs").validateLibrary(modsPath);
-  const characterBasePath = modsNevernessPaks.getCharacterDirectoryBasePath(modsPath, gameId2);
+  const characterBasePath = getCharacterDirectoryBasePath(modsPath, gameId2);
   if (!characterBasePath || !fs.existsSync(characterBasePath)) return null;
   const mappingEntry = charactersCatalog.getCharacterMappingEntry(characterName, gameId2);
   const candidates = [characterName, mappingEntry?.displayName, mappingEntry?.canonicalEnName, mappingEntry?.jasmName, ...(Array.isArray(mappingEntry?.aliases) ? mappingEntry.aliases : [])].map(name => String(name || "").trim()).filter(charactersSkins.isSafeAppearancePathSegment);
@@ -177,7 +167,7 @@ function resolveCharacterEntryDirect(characterName, gameId2 = gamesSettings.getA
 function resolveCharacterEntry(characterName, gameId2 = gamesSettings.getActiveGameScopeId()) {
   if (!charactersSkins.isSafeAppearancePathSegment(characterName)) return null;
   const modsPath = gamesSettings.getModsPath(gameId2);
-  const characterBasePath = modsNevernessPaks.getCharacterDirectoryBasePath(modsPath, gameId2);
+  const characterBasePath = getCharacterDirectoryBasePath(modsPath, gameId2);
   if (!characterBasePath || !fs.existsSync(characterBasePath)) return null;
   const directResolved = resolveCharacterEntryDirect(characterName, gameId2);
   if (directResolved) return directResolved;
@@ -213,29 +203,18 @@ function resolveCanonicalCharacterInstallTarget(characterName, gameId2 = gamesSe
     characterPath: null
   };
   const canonicalCharacterName = charactersSkins.assertSafeAppearancePathSegment(getCanonicalCharacterConfigKey(rawName, gameId2), i18n.t("backend.validation.canonicalCharacterName"));
-  if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-    return {
-      characterName: canonicalCharacterName,
-      characterPath: modsNevernessPaks.getNevernessDx12CharacterPath(canonicalCharacterName, {
-        ensure,
-        gameId: gameId2
-      })
-    };
-  }
   const modsPath = gamesSettings.getModsPath(gameId2);
-  const characterBasePath = modsNevernessPaks.getCharacterDirectoryBasePath(modsPath, gameId2, {
+  if (gameId2 === "arknights") require("../games/arknights/service.cjs").validateLibrary(modsPath);
+  const characterBasePath = getCharacterDirectoryBasePath(modsPath, gameId2, {
     ensure
   });
-  if (gameId2 === "arknights") require("../games/arknights/service.cjs").validateLibrary(modsPath);
   if (!characterBasePath) {
     return {
       characterName: canonicalCharacterName,
       characterPath: null
     };
   }
-  // GIMI collections commonly use aliases such as Ayaka or Raiden. Keep all
-  // imports in the existing directory so detail/actions see the same Mods.
-  const characterPath = (gameId2 === "genshin-impact" ? resolveCharacterPath(rawName, gameId2) : null) || path.join(characterBasePath, canonicalCharacterName);
+  const characterPath = path.join(characterBasePath, canonicalCharacterName);
   if (!systemPaths.isPathInsideDirectory(characterPath, characterBasePath)) {
     throw new Error(i18n.t("backend.characters.directories.invalidCharacterPath"));
   }
@@ -362,7 +341,7 @@ function getCharacterConfigStoreValue(store, characterName, fallbackValue, gameI
   };
 }
 function getCharacterModCacheKeys(characterName, modName, gameId2 = gamesSettings.getActiveGameScopeId()) {
-  return charactersCatalog.getCharacterAliasCandidates(characterName, gameId2, resolveCharacterEntry(characterName, gameId2)).map(alias => `${gameId2 === "genshin-impact" ? "genshin-impact/" : ""}${alias}/${modName}`);
+  return charactersCatalog.getCharacterAliasCandidates(characterName, gameId2, resolveCharacterEntry(characterName, gameId2)).map(alias => `${alias}/${modName}`);
 }
 function trackCharacterUsage(characterName, gameId2 = gamesSettings.getActiveGameScopeId()) {
   if (!configStore.currentConfig.characterUsage) configStore.currentConfig.characterUsage = {};
@@ -371,40 +350,9 @@ function trackCharacterUsage(characterName, gameId2 = gamesSettings.getActiveGam
   configStore.saveConfig(configStore.currentConfig);
   return canonicalCharacterName;
 }
-function getForeignDefaultCharacters(gameId2) {
-  const ownDefaults = new Set(charactersCatalog.getDefaultCharactersForGame(gameId2));
-  const foreignDefaults = new Set();
-  Object.entries(charactersFallbacks.FALLBACK_DEFAULT_CHARACTERS_BY_GAME).forEach(([targetGameId]) => {
-    const characters = charactersCatalog.getDefaultCharactersForGame(targetGameId);
-    if (targetGameId === gameId2) return;
-    characters.forEach(characterName => {
-      if (!ownDefaults.has(characterName)) {
-        foreignDefaults.add(characterName);
-      }
-    });
-  });
-  return foreignDefaults;
-}
-function shouldHideForeignDefaultCharacterFolder(modsPath, characterName, gameId2 = gamesSettings.getActiveGameScopeId(), foreignDefaults = getForeignDefaultCharacters(gameId2)) {
-  if (!foreignDefaults.has(characterName)) return false;
-  const charDir = path.join(modsPath, characterName);
-  if (!fs.existsSync(charDir)) return false;
-  try {
-    const entries = fs.readdirSync(charDir, {
-      withFileTypes: true
-    });
-    const hasNestedFolders = entries.some(entry => entry.isDirectory());
-    if (hasNestedFolders) return false;
-    const hasInfoJson = entries.some(entry => entry.isFile() && /^info\.json$/i.test(entry.name));
-    if (hasInfoJson) return false;
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
 function ensureDefaultCharacterFolders(modsPath, gameId2 = gamesSettings.getActiveGameScopeId()) {
   if (gameId2 === "arknights") require("../games/arknights/service.cjs").validateLibrary(modsPath);
-  const characterBasePath = modsNevernessPaks.getCharacterDirectoryBasePath(modsPath, gameId2, {
+  const characterBasePath = getCharacterDirectoryBasePath(modsPath, gameId2, {
     ensure: true
   });
   if (!characterBasePath) return {
@@ -441,9 +389,7 @@ function ensureDefaultCharacterFolders(modsPath, gameId2 = gamesSettings.getActi
   };
 }
 function bootstrapDefaultCharacterFoldersIfSafe(modsPath, gameId2 = gamesSettings.getActiveGameScopeId()) {
-  const characterBasePath = modsNevernessPaks.getCharacterDirectoryBasePath(modsPath, gameId2, {
-    ensure: gamesNevernessLoader.isNevernessDx12Mode(gameId2)
-  });
+  const characterBasePath = getCharacterDirectoryBasePath(modsPath, gameId2);
   if (!characterBasePath || !fs.existsSync(characterBasePath)) {
     return {
       bootstrapped: false,
@@ -451,7 +397,7 @@ function bootstrapDefaultCharacterFoldersIfSafe(modsPath, gameId2 = gamesSetting
     };
   }
   const beforeNames = new Set(listCharacterDirectories(modsPath, gameId2).map(entry => entry.displayName));
-  if (!gamesNevernessLoader.isNevernessDx12Mode(gameId2) && charactersOrganization.shouldDeferDefaultCharacterBootstrap(modsPath, gameId2)) {
+  if (charactersOrganization.shouldDeferDefaultCharacterBootstrap(modsPath, gameId2)) {
     return {
       bootstrapped: false,
       createdCharacters: []
@@ -468,7 +414,7 @@ function bootstrapDefaultCharacterFoldersIfSafe(modsPath, gameId2 = gamesSetting
 function getCharacterListResponse(modsPath, gameId2 = gamesSettings.getActiveGameScopeId(), {
   ensureDefaults = false
 } = {}) {
-  if (ensureDefaults && gamesNevernessLoader.isNevernessDx12Mode(gameId2)) ensureDefaultCharacterFolders(modsPath, gameId2);
+  if (ensureDefaults) ensureDefaultCharacterFolders(modsPath, gameId2);
   const characters = sortCharacterEntries(listCharacterDirectories(modsPath, gameId2), gameId2).filter(entry => !charactersHidden.isCharacterHidden(entry.displayName, gameId2)).map(entry => ({
     name: entry.displayName,
     modCount: entry.modCount,
@@ -486,7 +432,6 @@ function buildLegacyImportResponse(modsPath, gameId2 = gamesSettings.getActiveGa
   return charactersOrganization.buildImportPreview(charactersOrganization.scanImportCandidates(modsPath, gameId2), modsPath);
 }
 function buildCharacterRefreshResponse(modsPath, gameId2 = gamesSettings.getActiveGameScopeId()) {
-  // Force a disk read, including nested Pak state whose parent mtime may not change.
   CHARACTER_DIRECTORY_STATS_CACHE.clear();
   return getCharacterListResponse(modsPath, gameId2, {
     ensureDefaults: false

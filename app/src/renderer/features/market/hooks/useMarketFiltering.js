@@ -209,11 +209,11 @@ export function useMarketFiltering({
         (mod.game_version || "") !== selectedGameVersion
       )
         return false;
+      if (likedOnly && !likedMods.has(String(mod.id))) return false;
       if (selectedModMode !== "all") {
         const modMode = mod.modMode === "pak" ? "pak" : "d3d";
         if (modMode !== selectedModMode) return false;
       }
-      if (likedOnly && !likedMods.has(String(mod.id))) return false;
       if (selectedTags.length > 0) {
         const modTagIds = new Set((mod.tags || []).map((t) => t.id));
         if (!selectedTags.every((st) => modTagIds.has(st.id))) return false;

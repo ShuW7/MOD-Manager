@@ -17,7 +17,6 @@ import {
 import {
   getAppearanceImportTargetName,
   getExplicitImportAppearanceSectionId,
-  notifyPakImported,
 } from "../model/modHelpers.js";
 import {
   BASE_SECTION_ID,
@@ -379,9 +378,6 @@ export function useModImport({
         (sum, item) => sum + (item.success ? Number(item.modCount || 1) : 0),
         0,
       );
-      const importedPak = results.some(
-        (item) => item.success && item.modMode === "pak",
-      );
       setDirectImportReview((prev) => ({
         ...prev,
         phase: "done",
@@ -392,11 +388,6 @@ export function useModImport({
         syncCharacterCache: ok > 0,
         conflictDelay: 1400,
       });
-      if (importedPak)
-        notifyPakImported({
-          keepCurrentView: true,
-          characterName,
-        });
       if (managedResults.length === 1 && modResults.length === 0) {
         setToast({
           type: managedResults[0].success ? "success" : "error",
@@ -441,21 +432,6 @@ export function useModImport({
     if (result.success) {
       setNewModFile(null);
       setNewModName("");
-      if (result.modMode === "pak") {
-        setToast({
-          type: "success",
-          message: t("mods.import.pakDetected"),
-        });
-        await loadMods({
-          syncCharacterCache: true,
-          conflictDelay: 1400,
-        });
-        notifyPakImported({
-          keepCurrentView: true,
-          characterName,
-        });
-        return;
-      }
       if (result.integratedPackage) {
         await loadMods({
           syncCharacterCache: true,
@@ -687,9 +663,6 @@ export function useModImport({
       );
       const fail = (result?.results || []).filter((r) => !r.success).length;
       setDirectInstallProgress(null);
-      const importedPak = (result?.results || []).some(
-        (r) => r.success && r.modMode === "pak",
-      );
       const importedIntegrated = (result?.results || []).some(
         (r) => r.success && r.integratedPackage,
       );
@@ -704,9 +677,7 @@ export function useModImport({
                 ok,
                 fail,
               })
-            : importedPak
-              ? t("mods.import.pakDetected")
-              : importedIntegrated
+            : importedIntegrated
                 ? t("mods.import.integratedInstalled", {
                     characterCount: integratedStats?.characterCount || 0,
                     modCount: integratedStats?.modCount || 0,
@@ -717,17 +688,6 @@ export function useModImport({
                     targetAppearanceSectionName,
                   }),
       });
-      if (importedPak) {
-        await loadMods({
-          syncCharacterCache: true,
-          conflictDelay: 1400,
-        });
-        notifyPakImported({
-          keepCurrentView: true,
-          characterName,
-        });
-        return;
-      }
       if (ok > 0) {
         recordCharacterUsage(ok);
         await loadMods({

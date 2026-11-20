@@ -34,6 +34,20 @@ test('M4A deployment excludes metadata and nested disabled resources, removes di
   assert.deepEqual(fs.readdirSync(f.destination), [MARKER]);
   assert.equal(fs.readFileSync(path.join(f.mod, 'preview.png'), 'utf8'), 'preview');
 });
+test('warm fingerprints avoid payload reads and detect replacements with preserved size and mtime', t => {
+  const f = fixture(t), memo = {};
+  const file = path.join(f.mod, 'illust_char_4215_buddy_mh#2.png');
+  const first = files.fingerprint(f.mod, {}, memo);
+  const open = t.mock.method(fs, 'openSync');
+  assert.equal(files.fingerprint(f.mod, {}, memo), first);
+  assert.equal(open.mock.calls.some(call => call.arguments[0] === file), false);
+  const stat = fs.statSync(file);
+  fs.renameSync(file, file + '.previous');
+  fs.writeFileSync(file, 'other');
+  fs.utimesSync(file, stat.atime, stat.mtime);
+  fs.unlinkSync(file + '.previous');
+  assert.notEqual(files.fingerprint(f.mod, {}, memo), first);
+});
 test('large deployed resources share the library payload and old deployments are removed', t => {
   const f = fixture(t);
   const large = path.join(f.mod, 'illust_char_4215_buddy_mh#2.png');

@@ -11,10 +11,6 @@ const {
 const {
   allowedFileUrl
 } = require('./archive-media.cjs');
-const {
-  isKnownSite,
-  siteUrl
-} = require("./sites/definitions.cjs");
 function createArchiveDownloads({
   userData,
   services,
@@ -39,7 +35,7 @@ function createArchiveDownloads({
     for (const task of saved) {
       if (!task.taskId?.startsWith('attachment:')) continue;
       if (task.browser) {
-        if (!isKnownSite(task.source) || !siteUrl(task.sourceUrl, task.source)) continue;
+        if (!Object.hasOwn(services, task.source) || !allowedFileUrl(task.sourceUrl, task.source)) continue;
         if (!['completed', 'canceled', 'error'].includes(task.status)) {
           task.status = 'error';
           task.error = i18n.t("backend.archiveDownloads.restartInterrupted");
@@ -191,7 +187,7 @@ function createArchiveDownloads({
     item
   }) {
     if (stateError) throw Error(stateError);
-    if (!isKnownSite(source) || !siteUrl(sourceUrl, source) || !getCacheDir) return false;
+    if (!Object.hasOwn(services, source) || !allowedFileUrl(sourceUrl, source) || !getCacheDir) return false;
     const filename = String(item.getFilename()).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(-180);
     if (!/\.(zip|rar|7z|ini|pak|mp4)$/i.test(filename) || /text\/html/i.test(item.getMimeType())) return false;
     const taskId = 'attachment:' + crypto.randomUUID();

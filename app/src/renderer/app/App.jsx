@@ -21,10 +21,17 @@ import {
   readAuthSession,
   subscribeAuthSession,
 } from "../lib/authSession.js";
+import {
+  hasOpenModal,
+  shouldHandleGlobalShortcut,
+} from "../lib/globalShortcuts.js";
+import {
+  shouldResetCharacterOnTabChange,
+  UI_CHARACTER_NAME,
+} from "../lib/navigation.js";
 import { ThemeProvider } from "./ThemeProvider.jsx";
 import { TopBar } from "../components/TopBar.jsx";
 import { CharacterRail } from "../features/characters/components/CharacterRail.jsx";
-import { useGameOrder } from "../hooks/useGameOrder.js";
 import { FloatingDownloadOrb } from "../features/downloads/FloatingDownloadOrb.jsx";
 import { PublishProgressFloat } from "../features/market/components/PublishProgressFloat.jsx";
 const CharacterView = lazyWithPreload(
@@ -55,9 +62,17 @@ const LinkCheckerPanel = React.lazy(
 const PublishModDialog = React.lazy(
   () => import("../features/market/components/PublishModDialog.jsx"),
 );
+function PageLoading() {
+  return (
+    <div className="page-transition-enter app-page-loading" role="status">
+      {t("common.status.loading")}
+    </div>
+  );
+}
 function App() {
   const [activeTab, setActiveTab] = React.useState("characters");
   const [selectedCharacter, setSelectedCharacter] = React.useState(null);
+  const selectedCharacterTabRef = React.useRef("characters");
   const [managerTarget, setManagerTarget] = React.useState(null);
   const [gameKey, setGameKey] = React.useState(0);
   const [pendingBatchItems, setPendingBatchItems] = React.useState(null);
@@ -71,12 +86,7 @@ function App() {
   const [activeGame, setActiveGame] = React.useState(null);
   const activeGameIdRef = React.useRef(null);
   const [allGames, setGames] = React.useState([]);
-  const gameOrder = useGameOrder(allGames);
-  const games = gameOrder.items;
-  React.useEffect(() => {
-    if (activeTab === "gacha" && activeGame?.id && activeGame.id !== "wuthering-waves")
-      setActiveTab("characters");
-  }, [activeTab, activeGame?.id]);
+  const games = allGames;
   const [runtimeInfo, setRuntimeInfo] = React.useState(null);
   const [devMode, setDevMode] = React.useState(false);
   const [showDevPasswordModal, setShowDevPasswordModal] = React.useState(false);
@@ -220,7 +230,28 @@ function App() {
       ].includes(tab)
     )
       return;
-    if (tab === "characters" || tab === "ui") setModViewKey((k2) => k2 + 1);
+    if (tab === "ui") {
+      // UI resources are one shared Mod set. Skip the single "UI" card and
+      // open its manager directly, which is the only meaningful entry.
+      selectedCharacterTabRef.current = "ui";
+      setManagerTarget(null);
+      setSelectedCharacter(UI_CHARACTER_NAME);
+      if (activeTab !== "ui") setModViewKey((k2) => k2 + 1);
+    } else if (tab === "characters") {
+      // A character opened under the other tab must not leak across; selecting
+      // the current tab again returns to its root.
+      if (
+        shouldResetCharacterOnTabChange(
+          "characters",
+          activeTab,
+          selectedCharacterTabRef.current,
+        )
+      ) {
+        setSelectedCharacter(null);
+        setManagerTarget(null);
+      }
+      setModViewKey((k2) => k2 + 1);
+    }
     if (tab === "modmarket") setHasOpenedMarket(true);
     setActiveTab(tab);
     const preloaders = {
@@ -235,7 +266,15 @@ function App() {
         fn?.();
       } catch {}
     });
-  }, []);
+  }, [activeTab]);
+  React.useEffect(() => {
+    // The UI tab has exactly one meaningful entry (the shared "UI" set). Keep
+    // it open even if another flow clears the character selection while the
+    // tab is active.
+    if (activeTab !== "ui" || selectedCharacter) return;
+    selectedCharacterTabRef.current = "ui";
+    setSelectedCharacter(UI_CHARACTER_NAME);
+  }, [activeTab, selectedCharacter]);
   React.useEffect(() => {
     const idle = window.requestIdleCallback || ((cb2) => setTimeout(cb2, 400));
     const cancelIdle = window.cancelIdleCallback || clearTimeout;
@@ -245,6 +284,12 @@ function App() {
       } catch {}
       try {
         CharacterView.preload?.();
+      } catch {}
+      try {
+        SettingsView.preload?.();
+      } catch {}
+      try {
+        PresetView.preload?.();
       } catch {}
     });
     return () => {
@@ -256,20 +301,17 @@ function App() {
   // Choosing the section you are already in returns to its root.
   const handleNavigate = React.useCallback(
     (tab) => {
-      if (
-        (tab === "characters" || tab === "ui") &&
-        activeTab === tab
-      )
-        setSelectedCharacter(null);
       handleSetActiveTab(tab);
     },
-    [activeTab, handleSetActiveTab],
+    [handleSetActiveTab],
   );
   React.useEffect(() => {
     // Ctrl+F jumps to the search box of whichever page is showing.
     function focusSearch(event) {
       if (!event.ctrlKey || event.shiftKey || event.altKey) return;
       if (String(event.key).toLowerCase() !== "f") return;
+      if (!shouldHandleGlobalShortcut(event, { modalOpen: hasOpenModal() }))
+        return;
       const input =
         document.querySelector(".mod-search-input") ||
         document.querySelector(".main-content .search-field input");
@@ -288,29 +330,15 @@ function App() {
   const openManagerTarget = React.useCallback(
     async (payload) => {
       if (!payload?.characterName) return;
-      const targetGameId = payload?.gameId;
-      if (
-        targetGameId &&
-        activeGame?.id &&
-        targetGameId !== activeGame.id &&
-        window.api?.gameSwitch
-      ) {
-        const switchResult = await window.api.gameSwitch(targetGameId);
-        if (!switchResult?.success) return;
-        if (switchResult?.success) {
-          await refreshGameState();
-          setGameKey((k2) => k2 + 1);
-          setModViewKey((k2) => k2 + 1);
-        }
-      }
       setActiveTab("characters");
+      selectedCharacterTabRef.current = "characters";
       setSelectedCharacter(payload.characterName);
       setManagerTarget({
         ...payload,
         requestId: Date.now(),
       });
     },
-    [activeGame?.id],
+    [],
   );
   React.useEffect(() => {
     const cleanup = window.api.onOpenManagerTarget?.((payload) => {
@@ -336,20 +364,6 @@ function App() {
     };
     window.addEventListener("qaqm-navigate", handler);
     return () => window.removeEventListener("qaqm-navigate", handler);
-  }, [handleSetActiveTab]);
-  React.useEffect(() => {
-    const handler = async (event) => {
-      const keepCurrentView = event?.detail?.keepCurrentView === true;
-      if (!keepCurrentView) {
-        setManagerTarget(null);
-        setSelectedCharacter(null);
-        handleSetActiveTab("characters");
-        setModViewKey((k2) => k2 + 1);
-      }
-      await refreshGameState();
-    };
-    window.addEventListener("qaqm-pak-imported", handler);
-    return () => window.removeEventListener("qaqm-pak-imported", handler);
   }, [handleSetActiveTab]);
   async function refreshGameState() {
     try {
@@ -507,7 +521,7 @@ function App() {
           return;
         }
         if (result.stale || result.fromCache || !result.mods?.length) return;
-        const gameId = result.gameId || "endfield";
+        const gameId = result.gameId || "arknights";
         const seenKey = `market-seen-ids-${gameId}`;
         let seenIds;
         try {
@@ -563,7 +577,7 @@ function App() {
   const handleMarketToastDismiss = React.useCallback(() => {
     setMarketNewMods((prev) => {
       if (prev.length > 0) {
-        const gameId = activeGame?.id || "endfield";
+        const gameId = activeGame?.id || "arknights";
         const seenKey = `market-seen-ids-${gameId}`;
         try {
           const existing = new Set(
@@ -607,6 +621,7 @@ function App() {
   React.useEffect(() => {
     function handleKeyDown(e) {
       if (isDevModeShortcut(e)) {
+        if (!shouldHandleGlobalShortcut(e, { modalOpen: hasOpenModal() })) return;
         e.preventDefault();
         if (devMode) {
           handleExitDevMode();
@@ -636,13 +651,6 @@ function App() {
     setDevMode(false);
     window.api.devLock?.();
   }
-  const handleGameSwitch = React.useCallback(async () => {
-    setSelectedCharacter(null);
-    setManagerTarget(null);
-    setGameKey((k2) => k2 + 1);
-    setModViewKey((k2) => k2 + 1);
-    await refreshGameState();
-  }, []);
   const handleDragLeave = React.useCallback((e) => {
     if (!e.dataTransfer.types.includes("Files")) return;
     if (!e.currentTarget.contains(e.relatedTarget)) {
@@ -653,10 +661,10 @@ function App() {
   const handleDragOver = React.useCallback(
     (e) => {
       if (selectedCharacter) {
-        if (
-          e.dataTransfer.types.includes("Files") &&
-          !isImageOnlyDrag(e.dataTransfer)
-        ) {
+        // While a character is open the Mod manager owns the drop surface.
+        // Cancel the browser default for every file drag so dropping outside
+        // that surface can never navigate the window to file://.
+        if (e.dataTransfer.types.includes("Files")) {
           e.preventDefault();
           e.dataTransfer.dropEffect = "copy";
         }
@@ -680,6 +688,7 @@ function App() {
       if (selectedCharacter) {
         // Native drag/drop bypasses the DOM drop event; forward it to the
         // character Mod manager instead of silently discarding it.
+        if (!paths.length) return;
         window.dispatchEvent(
           new CustomEvent("qaqm:mod-import-paths", {
             detail: { characterName: selectedCharacter, paths },
@@ -763,15 +772,12 @@ function App() {
   }, [dropError]);
   const handleDrop = React.useCallback(
     async (e) => {
-      if (selectedCharacter) {
-        setIsDraggingFiles(false);
-        dragCounterRef.current = 0;
-        return;
-      }
+      // Always cancel the browser default. An uncancelled file drop would
+      // navigate this window to file://, losing the whole UI.
       e.preventDefault();
       dragCounterRef.current = 0;
       setIsDraggingFiles(false);
-      const files = Array.from(e.dataTransfer.files);
+      const files = Array.from(e.dataTransfer?.files || []);
       const allImages =
         files.length > 0 &&
         files.every(
@@ -779,10 +785,16 @@ function App() {
             f2.type.startsWith("image/") ||
             /\.(png|jpg|jpeg|webp|gif|bmp)$/i.test(f2.name),
         );
-      if (allImages) return;
       const paths = files
         .map((f2) => window.api.getPathForFile(f2))
         .filter(Boolean);
+      if (selectedCharacter) {
+        // The Mod manager (or the native drop bridge) owns imports while a
+        // character is open; forward the paths instead of discarding them.
+        await handleDroppedPaths(paths);
+        return;
+      }
+      if (allImages) return;
       if (!paths.length) return;
       await handleDroppedPaths(paths);
     },
@@ -829,7 +841,6 @@ function App() {
     activeGame?.id || "__unknown__",
     activeGame?.modFolderPath || "",
     activeGame?.launchMode || "",
-    activeGame?.dx12DisabledModsDir || "",
   ].join("|");
   const characterCacheKey = characterScopeKey;
   const currentCharacterViewCache =
@@ -952,20 +963,12 @@ function App() {
           setActiveTab={handleNavigate}
           activeGame={activeGame}
           currentCharacter={selectedCharacter}
-          onGameSwitch={handleGameSwitch}
-          games={allGames}
           onHome={handleGoHome}
         />
         <div className="main-content">
-          <React.Suspense
-            fallback={
-              <div className="page-transition-enter app-page-loading">
-                {t("common.status.loading")}
-              </div>
-            }
-          >
-            {(activeTab === "characters" || activeTab === "ui") &&
-              !selectedCharacter && (
+          {(activeTab === "characters" || activeTab === "ui") &&
+            !selectedCharacter && (
+            <React.Suspense fallback={<PageLoading />}>
               <CharacterView
                 activeGame={activeGame}
                 uiOnly={activeTab === "ui"}
@@ -991,23 +994,27 @@ function App() {
                 onPendingMoveCompleted={() => setPendingModMove(null)}
                 key={`characters-${characterScopeKey}-${gameKey}`}
               />
-            )}
-            {(activeTab === "characters" || activeTab === "ui") &&
-              selectedCharacter && (
-              <div className="library-workspace">
-                {activeTab !== "ui" && (
-                  <CharacterRail
-                    gameId={activeGame?.id}
-                    cache={currentCharacterViewCache}
-                    onCacheChange={handleCharacterCacheChange}
-                    selected={selectedCharacter}
-                    onSelect={(name) => {
-                      setManagerTarget(null);
-                      setSelectedCharacter(name);
-                    }}
-                    onBack={() => setSelectedCharacter(null)}
-                  />
-                )}
+            </React.Suspense>
+          )}
+          {(activeTab === "characters" || activeTab === "ui") &&
+            selectedCharacter && (
+            <div className="library-workspace">
+              {activeTab !== "ui" && (
+                <CharacterRail
+                  gameId={activeGame?.id}
+                  cache={currentCharacterViewCache}
+                  onCacheChange={handleCharacterCacheChange}
+                  selected={selectedCharacter}
+                  onSelect={(name) => {
+                    setManagerTarget(null);
+                    selectedCharacterTabRef.current =
+                      activeTab === "ui" ? "ui" : "characters";
+                    setSelectedCharacter(name);
+                  }}
+                  onBack={() => setSelectedCharacter(null)}
+                />
+              )}
+              <React.Suspense fallback={<PageLoading />}>
                 <ModView
                   characterName={selectedCharacter}
                   activeGameId={activeGame?.id}
@@ -1020,20 +1027,26 @@ function App() {
                   onCharacterModsChanged={handleCharacterModsChanged}
                   key={`modview-${gameScopeKey}-${selectedCharacter}-${modViewKey}`}
                 />
-              </div>
-            )}
-            {activeTab === "presets" && (
+              </React.Suspense>
+            </div>
+          )}
+          {activeTab === "presets" && (
+            <React.Suspense fallback={<PageLoading />}>
               <PresetView
                 activeGame={activeGame}
                 key={`presets-${gameScopeKey}`}
               />
-            )}
-            {(hasOpenedMarket || pendingMarketMod) && (
-              <div
-                style={{
-                  display: activeTab === "modmarket" ? "contents" : "none",
-                }}
-              >
+            </React.Suspense>
+          )}
+          {(hasOpenedMarket || pendingMarketMod) && (
+            <div
+              style={{
+                display: activeTab === "modmarket" ? "contents" : "none",
+              }}
+            >
+              {/* Own boundary: a slow first load of another page must never
+                  unmount this intentionally kept-alive view. */}
+              <React.Suspense fallback={<PageLoading />}>
                 <ModDownloadView
                   activeGameId={activeGame?.id}
                   games={games}
@@ -1045,17 +1058,19 @@ function App() {
                   onPendingDetailConsumed={() => setPendingMarketMod(null)}
                   key={"mod-download"}
                 />
-              </div>
-            )}
-            {activeTab === "settings" && (
+              </React.Suspense>
+            </div>
+          )}
+          {activeTab === "settings" && (
+            <React.Suspense fallback={<PageLoading />}>
               <SettingsView
                 devMode={devMode}
                 games={games}
                 activeGame={activeGame}
                 key={"system-settings"}
               />
-            )}
-          </React.Suspense>
+            </React.Suspense>
+          )}
         </div>
         {marketNewMods.length > 0 && (
           <React.Suspense fallback={null}>

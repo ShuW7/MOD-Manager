@@ -13,13 +13,11 @@ let launchInProgress = false;
 function registerIpc() {
   electron.ipcMain.handle("launch-game", async (_, { launchMode, gameId } = {}) => {
     if (launchInProgress) return { success: false, error: i18n.t("backend.games.launch.launchInProgress") };
+    if (gameId && gameId !== "arknights") return { success: false, error: i18n.t("backend.games.launch.gameChanged") };
     launchInProgress = true;
     try {
       const activeGame = gamesSettings.getActiveGame();
       if (!activeGame || activeGame.id !== "arknights") {
-        return { success: false, error: i18n.t("backend.games.launch.gameChanged") };
-      }
-      if (gameId && gameId !== activeGame.id) {
         return { success: false, error: i18n.t("backend.games.launch.gameChanged") };
       }
       const { gamePath } = gamesSettings.getResolvedActiveGamePaths();

@@ -21,7 +21,7 @@ function readMarketDownloadHistory() {
 function getMarketDownloadHistoryKey(mod) {
   const modId = String(mod?.id ?? "").trim();
   if (!modId) return "";
-  const gameId = String(mod?.gameId || "endfield").trim() || "endfield";
+  const gameId = String(mod?.gameId || "arknights").trim() || "arknights";
   return `${gameId}:${modId}`;
 }
 function getMarketDownloadedRecord(mod) {
@@ -37,7 +37,7 @@ function recordMarketModDownload(mod, downloadedAt = Date.now()) {
   const history = readMarketDownloadHistory();
   history[key] = {
     modId: String(mod.id),
-    gameId: String(mod.gameId || "endfield"),
+    gameId: String(mod.gameId || "arknights"),
     name: String(mod.name || "Mod"),
     downloadedAt: Number(downloadedAt) || Date.now(),
   };

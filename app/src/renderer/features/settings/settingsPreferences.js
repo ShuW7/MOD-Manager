@@ -1,13 +1,13 @@
 function remembered(key, fallback) {
   try {
-    return sessionStorage.getItem(key) || fallback;
+    return localStorage.getItem(key) || fallback;
   } catch {
     return fallback;
   }
 }
 function remember(key, value) {
   try {
-    sessionStorage.setItem(key, value);
+    localStorage.setItem(key, value);
   } catch {}
 }
 function applyCompatibility(level) {

@@ -2,6 +2,7 @@ import { t } from "../../../../shared/i18n/index.mjs";
 import React from "react";
 import ReactDOM from "react-dom";
 import { Icon } from "../../../components/Icon.jsx";
+import { useDialogLayer } from "../../../components/Modal.jsx";
 import {
   getModGameId,
   getMarketCanonicalCharacterName,
@@ -123,18 +124,29 @@ export function MarketDetailDialog({
   handleDownload,
 }) {
   const open = !!detailMod && isActive;
-  React.useEffect(() => {
-    if (!open) return void 0;
-    function handleKey(event) {
-      if (event.key !== "Escape") return;
+  const detailRef = React.useRef(null);
+  const requestCloseDetail = React.useCallback(
+    (event) => {
+      if (
+        event?.isComposing ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(
+          document.activeElement?.tagName,
+        ) ||
+        document.activeElement?.isContentEditable
+      )
+        return;
       // A lightbox or a feedback dialog on top closes first.
       if (document.querySelector(".image-viewer, .market-stacked-backdrop"))
         return;
       closeDetailModal();
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [open, closeDetailModal]);
+    },
+    [closeDetailModal],
+  );
+  useDialogLayer({
+    open,
+    onClose: requestCloseDetail,
+    containerRef: detailRef,
+  });
   if (!open) return null;
   const related = displayedMods;
   const gameId = getModGameId(detailMod);
@@ -151,6 +163,7 @@ export function MarketDetailDialog({
       onClick={() => closeDetailModal()}
     >
       <div
+        ref={detailRef}
         className="detail-layout"
         role="dialog"
         aria-modal={true}
@@ -294,11 +307,7 @@ export function MarketDetailDialog({
                   })}
                 <span
                   className="badge"
-                  title={
-                    (detailMod.modMode || "d3d") === "pak"
-                      ? "Pak Mod"
-                      : "3dm Mod"
-                  }
+                  title={"3dm Mod"}
                 >
                   {getModModeLabel(detailMod.modMode || "d3d")}
                 </span>
@@ -326,6 +335,7 @@ export function MarketDetailDialog({
               </section>
               <section className="detail-section">
                 <ModCommentSection
+                  key={detailMod.id}
                   modId={detailMod.id}
                   serverUrl={serverUrl}
                   clientId={clientId}

@@ -26,7 +26,7 @@ function createPersistManager(api) {
     }).filter(e => e.isFile() && statePattern.test(e.name)).map(e => e.name) : [];
   }
   function legacyScopes(ctx) {
-    return [`game:${ctx.game.id}`, ...(ctx.root ? [`root:${ctx.root.toLowerCase()}`, `mods:${ctx.mods.toLowerCase()}`] : []), ...(ctx.game.id === 'endfield' ? ['__default__'] : [])];
+    return [`game:${ctx.game.id}`, ...(ctx.root ? [`root:${ctx.root.toLowerCase()}`, `mods:${ctx.mods.toLowerCase()}`] : [])];
   }
   function legacyRecord(gameId, key) {
     for (const scope of legacyScopes(context(gameId))) {

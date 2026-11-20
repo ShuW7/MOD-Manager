@@ -18,14 +18,12 @@ const charactersSkins = require("../characters/skins.cjs");
 const configStore = require("../config/store.cjs");
 const coreLogger = require("../core/logger.cjs");
 const desktopWindows = require("../desktop/windows.cjs");
-const { WUWA_FIX_GAME_ID } = require("../games/definitions.cjs");
 const gamesSettings = require("../games/settings.cjs");
 const installManaged = require("../install/managed.cjs");
 const modsBackups = require("../mods/backups.cjs");
 const systemFiles = require("../system/files.cjs");
 const systemPaths = require("../system/paths.cjs");
 const systemWindows = require("../system/windows.cjs");
-const WUWA_INDEPENDENT_CONFIG_NAME = "config.json";
 const MANAGED_FIXER_MANIFEST_NAME = "active-fixer.json";
 const MANAGED_FIXER_RUNTIME_DIR = "runtimes";
 const MANAGED_FIXER_MAX_FILES = 1e4;
@@ -148,22 +146,6 @@ function resolveManagedFixerForGame(gameId2) {
       coreLogger.logger.warn(`[Fix] Managed fixer runtime root is missing or unsafe: ${runtimeDir}`);
       continue;
     }
-    if (gameId2 === WUWA_FIX_GAME_ID) {
-      const configPath = path.join(runtimeDir, WUWA_INDEPENDENT_CONFIG_NAME);
-      const expectedConfigSha256 = String(loaded.manifest.configSha256 || "").toLowerCase();
-      try {
-        if (!expectedConfigSha256 || !fs.existsSync(configPath) || hashFileSha256(configPath).toLowerCase() !== expectedConfigSha256) {
-          coreLogger.logger.warn(`[Fix] Managed Wuwa fixer config hash mismatch: ${configPath}`);
-          continue;
-        }
-        inspectWuwaIndependentConfig(configPath, {
-          expectedVersion: ""
-        });
-      } catch (error) {
-        coreLogger.logger.warn(`[Fix] Managed Wuwa fixer config is invalid: ${error?.message || error}`);
-        continue;
-      }
-    }
     return {
       ...loaded,
       exePath,
@@ -217,25 +199,8 @@ function chooseFixerExecutable(rootDir, sourceName = "") {
   }
   return scored[0].path;
 }
-function findFixerRuntimeRoot(sourceExe, packageRoot, gameId2) {
-  const exeDir = path.dirname(sourceExe);
-  if (gameId2 !== WUWA_FIX_GAME_ID) return exeDir;
-  const boundary = path.resolve(packageRoot);
-  let cursor = path.resolve(exeDir);
-  while (systemPaths.isSameResolvedPath(cursor, boundary) || systemPaths.isPathInsideDirectory(cursor, boundary)) {
-    const configPath = path.join(cursor, WUWA_INDEPENDENT_CONFIG_NAME);
-    if (fs.existsSync(configPath) && fs.statSync(configPath).isFile()) {
-      inspectWuwaIndependentConfig(configPath, {
-        expectedVersion: ""
-      });
-      return cursor;
-    }
-    if (systemPaths.isSameResolvedPath(cursor, boundary)) break;
-    const parent = path.dirname(cursor);
-    if (!parent || parent === cursor) break;
-    cursor = parent;
-  }
-  throw new Error(i18n.t("backend.fixes.service.wuwaConfigMissing"));
+function findFixerRuntimeRoot(sourceExe, _packageRoot, _gameId2) {
+  return path.dirname(sourceExe);
 }
 function copyDirectFixerSidecars(sourceExe, targetDir) {
   const sourceDir = path.dirname(sourceExe);
@@ -339,8 +304,6 @@ async function installManagedFixerFromSource(sourcePath, requestedGameId) {
     const sourceExe = chooseFixerExecutable(prepared.rootDir, prepared.sourceName);
     const runtimeRoot = findFixerRuntimeRoot(sourceExe, prepared.rootDir, gameId2);
     const sourceExeRelativePath = path.relative(runtimeRoot, sourceExe);
-    const sourceConfigPath = gameId2 === WUWA_FIX_GAME_ID ? path.join(runtimeRoot, WUWA_INDEPENDENT_CONFIG_NAME) : "";
-    const sourceConfigSha256 = sourceConfigPath ? hashFileSha256(sourceConfigPath) : "";
     const {
       files,
       totalBytes
@@ -368,18 +331,6 @@ async function installManagedFixerFromSource(sourcePath, requestedGameId) {
     if (!fs.existsSync(copiedExe) || hashFileSha256(copiedExe) !== sourceSha256) {
       throw new Error(i18n.t("backend.fixes.service.executableChecksumFailed"));
     }
-    let configMetadata = null;
-    let configSha256 = "";
-    if (gameId2 === WUWA_FIX_GAME_ID) {
-      const copiedConfig = path.join(runtimeDir, WUWA_INDEPENDENT_CONFIG_NAME);
-      configMetadata = inspectWuwaIndependentConfig(copiedConfig, {
-        expectedVersion: ""
-      });
-      configSha256 = hashFileSha256(copiedConfig);
-      if (configSha256 !== sourceConfigSha256) {
-        throw new Error(i18n.t("backend.fixes.service.configChecksumFailed"));
-      }
-    }
     const relativeExe = path.relative(userDir, copiedExe);
     const manifest = {
       schemaVersion: 1,
@@ -388,8 +339,6 @@ async function installManagedFixerFromSource(sourcePath, requestedGameId) {
       runtimeRoot: path.relative(userDir, runtimeDir),
       originalName: path.basename(sourceExe),
       sha256: sourceSha256,
-      configVersion: configMetadata?.currentVersion || "",
-      configSha256,
       installedAt: new Date().toISOString(),
       fileCount: files.length,
       totalBytes
@@ -449,55 +398,14 @@ function resolveFixExePath(gameId2) {
   const userOverride = path.join(overrideDir, "_override.exe");
   try {
     if (fs.existsSync(userOverride)) {
-      if (gameId2 === WUWA_FIX_GAME_ID && !fs.existsSync(path.join(overrideDir, WUWA_INDEPENDENT_CONFIG_NAME))) {
-        coreLogger.logger.warn("[WuwaFix] Ignoring legacy override without config.json");
-      } else {
-        coreLogger.logger.info(`[Fix] Using legacy override: ${userOverride}`);
-        return userOverride;
-      }
+      coreLogger.logger.info(`[Fix] Using legacy override: ${userOverride}`);
+      return userOverride;
     }
   } catch (_) {}
   return null;
 }
 function hashFileSha256(filePath) {
   return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
-}
-function inspectWuwaIndependentConfig(configPath, {
-  expectedVersion = ""
-} = {}) {
-  let config;
-  try {
-    config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-  } catch (error) {
-    throw new Error(i18n.t("backend.fixes.service.invalidConfig", {
-      reason: error?.message || error
-    }));
-  }
-  const currentVersion = String(config?.version?.current_version || "").trim();
-  if (!currentVersion) {
-    throw new Error(i18n.t("backend.fixes.service.configVersionMissing"));
-  }
-  if (expectedVersion && currentVersion !== expectedVersion) {
-    throw new Error(i18n.t("backend.fixes.service.configVersionMismatch", {
-      expectedVersion,
-      currentVersion: currentVersion || i18n.t("backend.fixes.service.emptyGame")
-    }));
-  }
-  for (const key of ["start_processing", "process_file_start", "no_need_fix"]) {
-    const translation = config?.lang?.[key]?.zh;
-    if (typeof translation !== "string" || !translation.trim()) {
-      throw new Error(i18n.t("backend.fixes.service.configLogMissing", {
-        key
-      }));
-    }
-  }
-  const characters = config?.characters;
-  const characterCount = characters && typeof characters === "object" && !Array.isArray(characters) ? Object.keys(characters).length : 0;
-  if (characterCount === 0) throw new Error(i18n.t("backend.fixes.service.configRulesMissing"));
-  return {
-    currentVersion,
-    characterCount
-  };
 }
 let independentFixer;
 function initialize() {

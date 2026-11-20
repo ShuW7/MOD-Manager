@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { createCharacterImageCache, MAX_IMAGE_BYTES } = require('../app/src/main/characters/image-cache.cjs');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
-const source = 'https://api.encore.moe/portrait.png';
+const source = 'https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/cn/portrait.png';
 const response = () => new Response(png, { headers: { 'Content-Type': 'image/png' } });
 function fixture(t) {
   const parent = fs.realpathSync(os.tmpdir());
@@ -98,12 +98,12 @@ test('only allowed HTTPS image sources and redirects can be fetched', async t =>
     calls.push(url);
     return url === source ? new Response(null, { status: 302, headers: { Location: '/redirected.png' } }) : response();
   } });
-  for (const url of ['file:///secret.png', 'http://localhost/image.png', 'https://other.test/image.png', 'https://user:pass@api.encore.moe/image.png']) {
+  for (const url of ['file:///secret.png', 'http://localhost/image.png', 'https://other.test/image.png', 'https://user:pass@raw.githubusercontent.com/image.png']) {
     assert.equal(cache.coverUrl(url), null); await assert.rejects(cache.get(url));
   }
   assert.deepEqual(calls, []);
   await cache.get(source);
-  assert.deepEqual(calls, [source, 'https://api.encore.moe/redirected.png']);
+  assert.deepEqual(calls, [source, 'https://raw.githubusercontent.com/redirected.png']);
   const rejected = createCharacterImageCache({ cacheDir, fetchFn: async () => new Response(null, { status: 302, headers: { Location: 'http://127.0.0.1/private' } }) });
   await assert.rejects(rejected.get(source + '?unsafe'), /redirect/);
 });
@@ -127,7 +127,7 @@ test('the image protocol serves bytes, rejects arbitrary paths, and does not cac
 
 test('an official fallback recovers a rejected image and stays available offline under the original cache key', async t => {
   const cacheDir = fixture(t), requests = [];
-  const fallback = 'https://hw-media-cdn-mingchao.kurogame.com/object/outfit.jpg';
+  const fallback = 'https://web.hycdn.cn/arknights/object/outfit.jpg';
   const cache = createCharacterImageCache({ cacheDir, fetchFn: async url => {
     requests.push(url);
     return url === source ? new Response('Forbidden', { status: 403 }) : response();

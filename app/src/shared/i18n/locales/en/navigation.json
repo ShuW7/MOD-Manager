@@ -3,13 +3,9 @@
   "mods": "Mods",
   "gameSettings": "Game settings",
   "currentGame": "Current game",
-  "chooseGame": "Choose a game",
-  "switchGame": "Switch game",
-  "switchGameLabel": "Switch game. Current: {{name}}",
-  "switchingGame": "Switching…",
-  "switchGameFailed": "Failed to switch game",
-  "switchGameRetry": "Failed to switch game. Try again.",
-  "gameSortHint": "Drag to reorder",
   "tabSortHint": "Drag to reorder",
-  "uiResources": "UI resources"
+  "uiResources": "UI resources",
+  "appearance": "Appearance",
+  "collapseSidebar": "Collapse sidebar",
+  "expandSidebar": "Expand sidebar"
 }

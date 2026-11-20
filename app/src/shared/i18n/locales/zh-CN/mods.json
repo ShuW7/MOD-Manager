@@ -24,6 +24,8 @@
     "applied": "已应用「{{name}}」",
     "toggledCount": " (启用 {{enabled}}, 禁用 {{disabled}})",
     "missingCount": " · {{missing}} 个 Mod 缺失",
+    "applyPartial": "部分应用：已启用 {{enabled}}、已禁用 {{disabled}}，失败 {{failed}} 项（{{error}}）",
+    "applyFailed": "应用预设失败：{{error}}",
     "updated": "已更新「{{name}}」（{{modsCount}} 个 Mod）",
     "imported": "预设导入成功",
     "import": "导入预设",
@@ -168,7 +170,6 @@
     "multipleModCount": "多个 Mod（{{multiModCount}}）",
     "analysisFailed": "分析失败：{{message}}",
     "installFailed": "安装失败：{{message}}",
-    "pakDetected": "已识别 Pak Mod 并切换分类",
     "integratedInstalled": "整合包已安装（{{characterCount}} 个角色，{{modCount}} 个 Mod）",
     "addedToSection": "Mod 已添加到「{{sectionName}}」",
     "scanFailed": "扫描失败：{{message}}",
@@ -332,6 +333,10 @@
     "matchedCountPrefix": "匹配",
     "modCountSuffix": "个 Mod",
     "selectedCountPrefix": "已选",
+    "selectMode": "多选",
+    "selectModeHint": "批量启用、停用或删除 Mod",
+    "exitSelectMode": "退出多选",
+    "exclusiveDisableFailed": "已启用目标 Mod，但有 {{count}} 个旧 Mod 未能停用",
     "enableSelected": "批量启用",
     "disableSelected": "批量停用",
     "deleteSelected": "批量删除",
@@ -352,6 +357,7 @@
     "located": "已定位 {{name}}",
     "notFound": "未找到 Mod：{{modName}}",
     "orderSaved": "Mod 顺序已保存",
+    "orderSaveFailed": "Mod 顺序保存失败：{{error}}",
     "selectTags": "标签",
     "noTags": "暂无标签",
     "enabledOf": "已启用 {{enabled}} / 共 {{total}}",
@@ -392,6 +398,7 @@
   "delete": {
     "confirmSelected": "确定把选中的 {{size}} 个 Mod 移入回收站？",
     "selectedRecycled": "已将 {{count}} 个 Mod 移入回收站",
+    "selectedFailed": "{{count}} 个 Mod 删除失败：{{error}}",
     "recycled": "Mod 已移入回收站",
     "confirmPrefix": "将 Mod",
     "recycleHint": "可在系统回收站中恢复"
@@ -412,20 +419,12 @@
     "withCover": "和封面",
     "importFailed": "导入 tag&图片失败: {{message}}"
   },
-  "pak": {
-    "organizing": "正在整理 Pak 生效目录",
-    "enabling": "正在启用 Pak Mod",
-    "disabling": "正在关闭 Pak Mod",
-    "openCharacterDirectoryFailed": "打开角色 Pak 目录失败"
-  },
   "managedInstall": {
     "asMod": "作为 Mod",
-    "updateXxmi": "更新 XXMI",
     "updateGamePackage": "更新游戏包",
     "installFixer": "安装修复器",
     "failed": "安装失败",
     "fixerUpdated": "独立修复器已更新：{{fileName}}",
-    "xxmiUpdated": "XXMI 已更新，共覆盖 {{copiedFiles}} 个文件",
     "gamePackageUpdated": "游戏包已更新，共覆盖 {{copiedFiles}} 个文件（Mods 已保留）"
   },
   "types": {

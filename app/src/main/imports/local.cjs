@@ -19,14 +19,12 @@ const charactersSkins = require("../characters/skins.cjs");
 const coreLogger = require("../core/logger.cjs");
 const desktopNotifications = require("../desktop/notifications.cjs");
 const gamesEnvironment = require("../games/environment.cjs");
-const gamesNevernessLoader = require("../games/neverness/loader.cjs");
 const gamesSettings = require("../games/settings.cjs");
 const importsBatchScan = require("./batch-scan.cjs");
 const importsIntegrated = require("./integrated.cjs");
 const modsAppearance = require("../mods/appearance.cjs");
 const modsBackups = require("../mods/backups.cjs");
 const modsConflicts = require("../mods/conflicts.cjs");
-const modsNevernessPaks = require("../games/neverness/paks.cjs");
 const overlayKeypress = require("../overlay/keypress.cjs");
 const persistMigration = require("../persist/migration.cjs");
 const persistTracking = require("../persist/tracking.cjs");
@@ -115,17 +113,6 @@ async function importModFromLocalPath({
         characterSkinId
       } : {})
     };
-    if (gamesNevernessLoader.isNevernessGame(gameId2)) {
-      const pakDetection = await modsNevernessPaks.detectNevernessDx12PakSource(filePath);
-      if (pakDetection.isPak) {
-        gamesNevernessLoader.setNevernessModMode("dx12");
-        return await modsNevernessPaks.importNevernessDx12PakMod(characterName, filePath, appearanceRequest, {
-          allowDuplicateRename,
-          gameId: gameId2
-        });
-      }
-      gamesNevernessLoader.setNevernessModMode("nemi");
-    }
     charactersOrganization.organizeLegacyCharacterFoldersIfNeeded(gameId2);
     const installTarget = charactersDirectories.resolveCanonicalCharacterInstallTarget(characterName, gameId2);
     const canonicalCharacterName = installTarget.characterName || characterName;
@@ -135,7 +122,7 @@ async function importModFromLocalPath({
         error: i18n.t("backend.imports.local.characterFolderNotFound")
       };
     }
-    const cleanModName = charactersSkins.assertSafeAppearancePathSegment(String(modInfo.name || archivesNames.getModArchiveName(filePath)).trim().replace(gameId2 === "arknights" ? /^DISABLED?_/i : /^DISABLED_/i, ""), i18n.t("backend.validation.modName"));
+    const cleanModName = charactersSkins.assertSafeAppearancePathSegment(String(modInfo.name || archivesNames.getModArchiveName(filePath)).trim().replace(/^DISABLED?_/i, ""), i18n.t("backend.validation.modName"));
     const availableTarget = getAvailableModFolderName(charPath, cleanModName);
     targetPath = availableTarget.path;
     const disabledPath = path.join(charPath, `DISABLED_${cleanModName}`);

@@ -1,6 +1,7 @@
 import { t } from "../../../../shared/i18n/index.mjs";
 import React from "react";
 import { Icon } from "../../../components/Icon.jsx";
+import { RecoverableImage } from "../../../components/RecoverableImage.jsx";
 import {
   getCharacterSkinCount,
   dataTransferIncludesCoverImage,
@@ -23,7 +24,6 @@ export function CharacterGrid({
   handleDropReorder,
   handleDropCover,
   characterCovers,
-  setCharacterCovers,
   renamingChar,
   renameInputRef,
   renameValue,
@@ -107,26 +107,19 @@ export function CharacterGrid({
             key={charName}
           >
             <div className="card-image">
-              {characterCovers[charName] ? (
-                <img
-                  src={characterCovers[charName]}
-                  alt={charName}
-                  draggable={false}
-                  loading="lazy"
-                  decoding="async"
-                  referrerPolicy="no-referrer"
-                  onError={() =>
-                    setCharacterCovers((previous) => ({
-                      ...previous,
-                      [charName]: null,
-                    }))
-                  }
-                />
-              ) : (
-                <div className="character-grid-avatar-initial">
-                  {charName.charAt(0).toUpperCase()}
-                </div>
-              )}
+              <RecoverableImage
+                src={characterCovers[charName]}
+                alt={charName}
+                draggable={false}
+                loading="lazy"
+                decoding="async"
+                referrerPolicy="no-referrer"
+                fallback={
+                  <div className="character-grid-avatar-initial">
+                    {charName.charAt(0).toUpperCase()}
+                  </div>
+                }
+              />
               {isPinned && (
                 <div
                   className="character-pin-badge"
@@ -150,12 +143,14 @@ export function CharacterGrid({
               {renamingChar !== charName && (
                 <div
                   className="card-stats-badge character-card-mod-count"
-                  title={Number(char.modCount || 0) > 0
-                    ? t("characters.card.enabled", {
-                        enabled: enabledCount,
-                        total: char.modCount || 0,
-                      })
-                    : t("characters.card.noMods")}
+                  title={
+                    Number(char.modCount || 0) > 0
+                      ? t("characters.card.enabled", {
+                          enabled: enabledCount,
+                          total: char.modCount || 0,
+                        })
+                      : t("characters.card.noMods")
+                  }
                 >
                   {Number(char.modCount || 0) > 0 ? (
                     <span className={enabledCount > 0 ? "is-lit" : ""}>
@@ -264,11 +259,7 @@ export function CharacterGrid({
               : t("characters.filter.withContentHint")}
           </div>
           {!showAllCharacters && onShowAllCharacters && (
-            <button
-              type="button"
-              className="btn"
-              onClick={onShowAllCharacters}
-            >
+            <button type="button" className="btn" onClick={onShowAllCharacters}>
               {t("characters.filter.showAll")}
             </button>
           )}

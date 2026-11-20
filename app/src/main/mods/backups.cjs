@@ -11,13 +11,10 @@ const fs = require("fs");
 const crypto = require("crypto");
 const charactersDirectories = require("../characters/directories.cjs");
 const coreLogger = require("../core/logger.cjs");
-const { WUWA_FIX_GAME_ID } = require("../games/definitions.cjs");
 const gamesSettings = require("../games/settings.cjs");
 const systemPaths = require("../system/paths.cjs");
 const QAQR_INI_BACKUP_MARKER = ".qaqm-inibak-";
 const QAQR_INI_BACKUP_PATTERN = /\.qaqm-inibak-(\d{8}-\d{6}(?:-(?:\d{2}|\d{3}-[0-9a-f]{6}))?(?:-\d{2})?)$/i;
-const WUWA_INDEPENDENT_BACKUP_PATTERN = /^(.*)_(\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}(?:\.\d{3})?)\.BAK$/i;
-const WUWA_INDEPENDENT_STAMP_PREFIX = "wuwa-independent:";
 function qaqmStampSortKey(stamp) {
   const match = String(stamp || "").match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})(.*)$/i);
   if (!match) return String(stamp || "");
@@ -34,46 +31,20 @@ function formatQaqmBackupStamp(stamp) {
   });
   return base;
 }
-function parseFixBackupFileName(fileName, {
-  includeWuwaIndependent = false
-} = {}) {
+function parseFixBackupFileName(fileName) {
   const name = String(fileName || "");
   const qaqmMatch = name.match(QAQR_INI_BACKUP_PATTERN);
-  if (qaqmMatch) {
-    return {
-      format: "qaqm",
-      stamp: qaqmMatch[1],
-      groupKey: qaqmMatch[1],
-      timestamp: qaqmMatch[1],
-      sortKey: qaqmStampSortKey(qaqmMatch[1]),
-      originalName: name.replace(QAQR_INI_BACKUP_PATTERN, "")
-    };
-  }
-  if (!includeWuwaIndependent) return null;
-  const independentMatch = name.match(WUWA_INDEPENDENT_BACKUP_PATTERN);
-  if (!independentMatch || !independentMatch[1]) return null;
-  const timestamp = independentMatch[2];
-  const groupKey = timestamp.slice(0, 16);
+  if (!qaqmMatch) return null;
   return {
-    format: "wuwa-independent",
-    stamp: `${WUWA_INDEPENDENT_STAMP_PREFIX}${groupKey}`,
-    groupKey,
-    timestamp,
-    sortKey: timestamp,
-    originalName: independentMatch[1]
+    format: "qaqm",
+    stamp: qaqmMatch[1],
+    groupKey: qaqmMatch[1],
+    timestamp: qaqmMatch[1],
+    sortKey: qaqmStampSortKey(qaqmMatch[1]),
+    originalName: name.replace(QAQR_INI_BACKUP_PATTERN, "")
   };
 }
 function formatFixBackupLabel(backup) {
-  if (backup?.format === "wuwa-independent") {
-    const match = String(backup.groupKey || "").match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2})-(\d{2})$/);
-    if (match) return i18n.t("backend.mods.backups.independentBackupLabel", {
-      datePart: match[1],
-      datePart2: match[2],
-      datePart3: match[3],
-      datePart4: match[4],
-      datePart5: match[5]
-    });
-  }
   return formatQaqmBackupStamp(backup?.stamp);
 }
 function normalizedOriginalPath(filePath) {
@@ -83,26 +54,10 @@ function normalizedOriginalPath(filePath) {
 function buildFixBackupRestorePlan(backups, selectedStamp) {
   const selected = backups.filter(backup => backup.stamp === selectedStamp);
   if (selected.length === 0) return null;
-  const format = selected[0].format;
-  if (format !== "wuwa-independent") {
-    return {
-      format,
-      restoreBackups: selected,
-      cleanupBackups: selected
-    };
-  }
-  const targetGroupKey = selected[0].groupKey;
-  const cleanupBackups = backups.filter(backup => backup.format === format && backup.groupKey >= targetGroupKey);
-  const earliestByFile = new Map();
-  for (const backup of cleanupBackups) {
-    const key = normalizedOriginalPath(backup.originalPath);
-    const current = earliestByFile.get(key);
-    if (!current || backup.timestamp < current.timestamp) earliestByFile.set(key, backup);
-  }
   return {
-    format,
-    restoreBackups: Array.from(earliestByFile.values()),
-    cleanupBackups
+    format: selected[0].format,
+    restoreBackups: selected,
+    cleanupBackups: selected
   };
 }
 function restorePersistBakFiles(modDir) {
@@ -220,7 +175,6 @@ function resolveModDirectory(characterName, modName) {
 function collectFixBackupFilesForMod(modDir) {
   const backups = [];
   const errors = [];
-  const includeWuwaIndependent = gamesSettings.getActiveGameScopeId() === WUWA_FIX_GAME_ID;
   function walk(dir) {
     let entries;
     try {
@@ -239,9 +193,7 @@ function collectFixBackupFilesForMod(modDir) {
         continue;
       }
       if (!entry.isFile()) continue;
-      const parsed = parseFixBackupFileName(entry.name, {
-        includeWuwaIndependent
-      });
+      const parsed = parseFixBackupFileName(entry.name);
       if (!parsed) continue;
       const originalPath = path.join(dir, parsed.originalName);
       if (!systemPaths.isPathInsideDirectory(originalPath, modDir) || !systemPaths.isPathInsideDirectory(fullPath, modDir)) continue;

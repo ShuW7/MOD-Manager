@@ -2,15 +2,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { resolveDataRoot, getDefaultModsPath, isUnusedDefaultModsPath, migrateLegacyArknights, resolveDisabledModsDirectory } = require('../app/src/main/runtime/data-paths.cjs');
+const { resolveDataRoot, getDefaultModsPath, isUnusedDefaultModsPath, migrateLegacyArknights } = require('../app/src/main/runtime/data-paths.cjs');
 
 test('installed default Mods directories follow the executable, including randomized manager names', () => {
   const install = path.resolve('test-results/portable-install');
   const data = resolveDataRoot({ isPackaged: true, execPath: path.join(install, 'r123456789.exe') });
   assert.equal(data, path.join(install, 'data'));
-  for (const [game, importer] of [['endfield', 'EFMI'], ['wuthering-waves', 'WWMI'], ['genshin-impact', 'GIMI'], ['zzz', 'ZZMI'], ['honkai-star-rail', 'SRMI']]) assert.equal(getDefaultModsPath(game, data), path.join(data, 'XXMI', importer, 'Mods'));
   assert.equal(getDefaultModsPath('arknights', data), path.join(data, 'Arknights/Mods'));
-  assert.equal(getDefaultModsPath('neverness-to-everness', data), path.join(data, 'NEMI/Mods'));
+  assert.equal(getDefaultModsPath('future-game', data), path.join(data, 'future-game/Mods'));
 });
 
 test('only the default Mods folder without files counts as unused, so detection never hides existing Mods', t => {
@@ -18,17 +17,17 @@ test('only the default Mods folder without files counts as unused, so detection 
   fs.mkdirSync(base, { recursive: true });
   const root = fs.mkdtempSync(path.join(base, 'default-mods-'));
   t.after(() => { assert.equal(path.dirname(root), base); fs.rmSync(root, { recursive: true, force: true }); });
-  const data = path.join(root, 'data'), mods = getDefaultModsPath('genshin-impact', data);
-  assert.equal(isUnusedDefaultModsPath(mods, 'genshin-impact', data), false, 'a missing folder is left to the existence check');
-  fs.mkdirSync(path.join(mods, '神里绫华'), { recursive: true });
-  assert.equal(isUnusedDefaultModsPath(mods, 'genshin-impact', data), true, 'empty character folders are created automatically');
-  assert.equal(isUnusedDefaultModsPath(mods.toUpperCase(), 'genshin-impact', data), true);
+  const data = path.join(root, 'data'), mods = getDefaultModsPath('arknights', data);
+  assert.equal(isUnusedDefaultModsPath(mods, 'arknights', data), false, 'a missing folder is left to the existence check');
+  fs.mkdirSync(path.join(mods, '阿米娅'), { recursive: true });
+  assert.equal(isUnusedDefaultModsPath(mods, 'arknights', data), true, 'empty character folders are created automatically');
+  assert.equal(isUnusedDefaultModsPath(mods.toUpperCase(), 'arknights', data), true);
   const custom = path.join(root, 'custom/Mods');
   fs.mkdirSync(custom, { recursive: true });
-  assert.equal(isUnusedDefaultModsPath(custom, 'genshin-impact', data), false, 'a chosen folder is never replaced, even when empty');
-  assert.equal(isUnusedDefaultModsPath('', 'genshin-impact', data), false);
-  fs.writeFileSync(path.join(mods, '神里绫华/mod.ini'), '[Constants]');
-  assert.equal(isUnusedDefaultModsPath(mods, 'genshin-impact', data), false);
+  assert.equal(isUnusedDefaultModsPath(custom, 'arknights', data), false, 'a chosen folder is never replaced, even when empty');
+  assert.equal(isUnusedDefaultModsPath('', 'arknights', data), false);
+  fs.writeFileSync(path.join(mods, '阿米娅/mod.ini'), '[Assets]');
+  assert.equal(isUnusedDefaultModsPath(mods, 'arknights', data), false);
 });
 
 test('legacy Arknights library and enabled resources migrate together, retaining originals and refusing conflicting data', t => {
@@ -50,21 +49,4 @@ test('legacy Arknights library and enabled resources migrate together, retaining
   fs.writeFileSync(path.join(migrated, 'Resources/illust.png'), 'new enabled content');
   assert.throws(() => migrateLegacyArknights(legacy, data), /conflicts/);
   assert.equal(fs.readFileSync(path.join(migrated, 'Resources/illust.png'), 'utf8'), 'new enabled content');
-});
-
-test('legacy NEMI disabled Mods migrate from both old defaults without importing them again after activation', t => {
-  const base = path.resolve('test-results');
-  const root = fs.mkdtempSync(path.join(base, 'nemi-paths-'));
-  t.after(() => { assert.equal(path.dirname(root), base); fs.rmSync(root, { recursive: true, force: true }); });
-  const legacyDirectories = ['QAQR_Neverness_Disabled_Pak_Mods', 'QAQManager_Neverness_Disabled_Pak_Mods'].map(name => path.join(root, name));
-  const preferred = path.join(root, 'data/NEMI/Disabled-Pak-Mods');
-  fs.mkdirSync(preferred, { recursive: true });
-  legacyDirectories.forEach((directory, index) => { fs.mkdirSync(directory); fs.writeFileSync(path.join(directory, `disabled-${index}.pak`), `old ${index}`); });
-  assert.equal(resolveDisabledModsDirectory({ preferred, legacyDirectories }), preferred);
-  assert.equal(fs.readFileSync(path.join(preferred, 'disabled-0.pak'), 'utf8'), 'old 0');
-  assert.equal(fs.readFileSync(path.join(preferred, 'disabled-1.pak'), 'utf8'), 'old 1');
-  fs.unlinkSync(path.join(preferred, 'disabled-0.pak'));
-  assert.equal(resolveDisabledModsDirectory({ preferred, legacyDirectories }), preferred);
-  assert.equal(fs.existsSync(path.join(preferred, 'disabled-0.pak')), false, 'activation must not re-import the old disabled copy');
-  assert.equal(resolveDisabledModsDirectory({ configured: legacyDirectories[0], preferred, legacyDirectories }), legacyDirectories[0]);
 });

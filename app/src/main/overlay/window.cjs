@@ -305,9 +305,6 @@ function registerOverlayHotkey(hotkey) {
 function toggleOverlay() {
   const now = Date.now();
   if (now < overlayToggleCooldownUntil) return;
-  if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible() && now - overlayLastShownAt < OVERLAY_RECENT_SHOW_GUARD_MS) {
-    return;
-  }
   overlayToggleCooldownUntil = now + OVERLAY_TOGGLE_COOLDOWN_MS;
   if (!overlayWindow) {
     createOverlayWindow()?.then(() => {
@@ -354,12 +351,16 @@ function showOverlay() {
   }
   if (!overlayWindow.webContents.isLoading()) {
     syncOverlayScaleToRenderer();
-    overlayWindow.webContents.send("overlay-window-shown");
+    overlayWindow.webContents.send("overlay-window-shown", {
+      pinned: overlayPinned
+    });
   } else {
     overlayWindow.webContents.once("did-finish-load", () => {
       if (overlayWindow && !overlayWindow.isDestroyed()) {
         syncOverlayScaleToRenderer();
-        overlayWindow.webContents.send("overlay-window-shown");
+        overlayWindow.webContents.send("overlay-window-shown", {
+          pinned: overlayPinned
+        });
       }
     });
   }
@@ -549,7 +550,7 @@ function registerIpc() {
       configStore.currentConfig.overlayAutoLocateEnabled = previousAutoLocate;
       return {
         success: false,
-        error: i18n.t("backend.games.genshinServices.saveSettingsFailed")
+        error: i18n.t("backend.persistManager.saveSettingsFailed")
       };
     }
     if (keypressModeChanged) {
@@ -898,8 +899,13 @@ function registerIpc() {
       };
       const applyResult = await presetsService.applyPresetModsForGame(preset, gameId2);
       if (!applyResult?.success) {
+        if (applyResult?.results) presetsService.notifyPresetApplicationChanged();
         return {
           success: false,
+          partial: !!applyResult?.partial,
+          ...(applyResult?.results ? {
+            results: applyResult.results
+          } : {}),
           error: applyResult?.error || i18n.t("backend.overlay.window.presetApplyFailed")
         };
       }

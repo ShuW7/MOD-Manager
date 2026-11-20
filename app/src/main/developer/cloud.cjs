@@ -34,7 +34,7 @@ function registerIpc() {
           })
         };
       }
-      const args = [batchScript, "--mode", mode, "--game-id", gameId2 || "endfield"];
+      const args = [batchScript, "--mode", mode, "--game-id", gameId2 || "arknights"];
       const resolvedModsDir = modsDir || gamesSettings.getResolvedActiveGamePaths().modsPath || "";
       if (resolvedModsDir) args.push("--mods-dir", resolvedModsDir);
       if (characters) args.push("--characters", characters);

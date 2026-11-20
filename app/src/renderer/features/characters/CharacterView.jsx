@@ -3,12 +3,10 @@ import { getCharacterUsageStorageKey } from "../../lib/batchImportPlan.js";
 import { useCharacterTools } from "./hooks/useCharacterTools.js";
 import { useCoalescedRefresh } from "../../hooks/useCoalescedRefresh.js";
 import { ManagementModal } from "../../components/ManagementModal.jsx";
-import { useNevernessMode } from "./hooks/useNevernessMode.js";
 import { useCharacterOrganization } from "./hooks/useCharacterOrganization.js";
 import { useCharacterImport } from "./hooks/useCharacterImport.js";
 import { DeleteCharacterDialog } from "./components/DeleteCharacterDialog.jsx";
 import { AddCharacterDialog } from "./components/AddCharacterDialog.jsx";
-import { Dx12RiskDialog } from "./components/Dx12RiskDialog.jsx";
 import { CharacterToolbar } from "./components/CharacterToolbar.jsx";
 import { CharacterGrid } from "./components/CharacterGrid.jsx";
 import { BatchImportDialog } from "./components/BatchImportDialog.jsx";
@@ -17,7 +15,6 @@ import ReactDOM from "react-dom";
 import HiddenCharactersDialog from "./components/HiddenCharactersDialog.jsx";
 import {
   getCharacterCustomOrderKey,
-  readNevernessModeFallback,
   readCharacterPinnedSet,
   getCharacterPinnedStorageKey,
   getCharacterShowAllStorageKey,
@@ -31,6 +28,9 @@ import { pinyin, pinyinReady } from "./model/characterSearch.js";
 import { LegacyImportModal } from "./components/LegacyImportModal.jsx";
 import { ImageCropper } from "../../components/ImageCropper.jsx";
 import { Icon } from "../../components/Icon.jsx";
+import { retryCharacterImages } from "../../components/RecoverableImage.jsx";
+import { isOperatorCharacter } from "../../lib/navigation.js";
+import { useDialogLayer } from "../../components/Modal.jsx";
 import { Menu, MenuItem } from "../../components/Menu.jsx";
 function CharacterView({
   activeGame,
@@ -161,26 +161,6 @@ function CharacterView({
     [characters],
   );
   const normalizedSearchQuery = normalizeSearchValue(searchQuery);
-  const isNeverness = activeGame?.id === "neverness-to-everness";
-  const {
-    nevernessDx12Status,
-    setNevernessDx12Status,
-    showDx12RiskConfirm,
-    setShowDx12RiskConfirm,
-    dx12Busy,
-    nevernessMode,
-    refreshNevernessDx12Status,
-    handleSwitchNevernessMode,
-    confirmEnableDx12Mode,
-    handleOpenDx12PakFolder,
-  } = useNevernessMode({
-    initialCache,
-    activeGame,
-    setToast,
-    isNeverness,
-    fetchCharacters,
-  });
-  const isWuwa = activeGame?.id === "wuthering-waves";
   const characterUsageMap = React.useMemo(() => {
     try {
       const raw = localStorage.getItem(
@@ -270,13 +250,32 @@ function CharacterView({
     searchableCharacterIndex,
     setToast,
     activeGame,
-    refreshNevernessDx12Status,
     fetchCharacters,
   });
+  const looseRootReviewRef = React.useRef(null);
+  const batchGuideRef = React.useRef(null);
+  const integratedGuideRef = React.useRef(null);
+  useDialogLayer({
+    open: showLooseRootReview,
+    onClose: () => setShowLooseRootReview(false),
+    closeDisabled: quarantiningLooseRoot,
+    containerRef: looseRootReviewRef,
+  });
+  useDialogLayer({
+    open: showBatchGuide,
+    onClose: () => setShowBatchGuide(false),
+    containerRef: batchGuideRef,
+  });
+  useDialogLayer({
+    open: showIntegratedPackageGuide,
+    onClose: () => setShowIntegratedPackageGuide(false),
+    containerRef: integratedGuideRef,
+  });
   const visibleCharacters = React.useMemo(() => {
-    const modeFiltered = showAllCharacters || normalizedSearchQuery
-      ? characters
-      : characters.filter((char) => Number(char?.modCount || 0) > 0);
+    const modeFiltered =
+      showAllCharacters || normalizedSearchQuery
+        ? characters
+        : characters.filter((char) => Number(char?.modCount || 0) > 0);
     const filtered = normalizedSearchQuery
       ? modeFiltered.filter((char) => {
           const tokens = searchableCharacterIndex.get(char?.name) || [];
@@ -355,7 +354,7 @@ function CharacterView({
     [characters, normalizedSearchQuery, searchableCharacterIndex],
   );
   const operatorCharacters = React.useMemo(
-    () => visibleCharacters.filter((char) => char?.name !== "UI"),
+    () => visibleCharacters.filter(isOperatorCharacter),
     [visibleCharacters],
   );
   const totalVisibleMods = React.useMemo(
@@ -388,37 +387,6 @@ function CharacterView({
     });
     setShowHiddenCharacters(false);
     setHiddenCharacterCount(0);
-  }, [activeGame?.id]);
-  React.useEffect(() => {
-    if (activeGame?.id !== "neverness-to-everness") {
-      setNevernessDx12Status(null);
-      setShowDx12RiskConfirm(false);
-      return;
-    }
-    setNevernessDx12Status(
-      (prev) =>
-        prev || {
-          success: true,
-          mode: readNevernessModeFallback(activeGame),
-          paths: {},
-        },
-    );
-    refreshNevernessDx12Status();
-  }, [activeGame?.id, activeGame?.launchMode]);
-  React.useEffect(() => {
-    if (activeGame?.id !== "neverness-to-everness") return;
-    const handleNevernessModeChanged = async () => {
-      await refreshNevernessDx12Status();
-    };
-    window.addEventListener(
-      "qaqm-neverness-mode-changed",
-      handleNevernessModeChanged,
-    );
-    return () =>
-      window.removeEventListener(
-        "qaqm-neverness-mode-changed",
-        handleNevernessModeChanged,
-      );
   }, [activeGame?.id]);
   React.useEffect(() => {
     let refreshTimer = null;
@@ -535,7 +503,7 @@ function CharacterView({
   React.useEffect(() => {
     if (showAddModal && inputRef.current) {
       setTimeout(() => {
-        inputRef.current.focus();
+        inputRef.current?.focus();
       }, 100);
     }
   }, [showAddModal]);
@@ -598,7 +566,6 @@ function CharacterView({
           looseRootFolders: null,
           misplacedModFolders: null,
           legacyPromptDismissed: false,
-          nevernessDx12Status,
           needsRefresh: false,
         });
       } else {
@@ -624,7 +591,6 @@ function CharacterView({
           looseRootFolders: null,
           misplacedModFolders: null,
           legacyPromptDismissed: false,
-          nevernessDx12Status,
           needsRefresh: false,
         });
       }
@@ -658,6 +624,7 @@ function CharacterView({
           force: true,
         })
       ) {
+        retryCharacterImages();
         setToast({
           type: "success",
           message: t("characters.status.refreshed"),
@@ -892,11 +859,14 @@ function CharacterView({
       newOrder.splice(draggedIndex, 1);
       newOrder.splice(targetIndex, 0, draggedChar);
       const characterMap = new Map(characters.map((char) => [char.name, char]));
+      const previousCharacters = characters;
       setCharacters(
         newOrder.map((name) => characterMap.get(name)).filter(Boolean),
       );
       try {
-        await window.api.saveCharacterOrder(newOrder);
+        const result = await window.api.saveCharacterOrder(newOrder);
+        if (!result?.success)
+          throw new Error(result?.error || t("common.errors.unknown"));
         setCustomOrderActive(true);
         try {
           localStorage.setItem(
@@ -909,7 +879,13 @@ function CharacterView({
           message: t("characters.sort.saved"),
         });
       } catch (err) {
-        console.error("Failed to save character order:", err);
+        setCharacters(previousCharacters);
+        setToast({
+          type: "error",
+          message: t("characters.sort.saveFailed", {
+            error: err?.message || String(err),
+          }),
+        });
       }
     }
     setDraggedChar(null);
@@ -1113,7 +1089,19 @@ function CharacterView({
       <div className="character-toolbar-actions">
         <button
           type="button"
-          className="icon-btn"
+          className="btn character-fix-button"
+          title={t("characters.fixer.openHint")}
+          onClick={() => handleFixAll("external")}
+          disabled={fixRunning}
+        >
+          <Icon name="wrench" size={17} />
+          {fixRunning
+            ? t("common.status.opening")
+            : t("characters.fixer.title")}
+        </button>
+        <button
+          type="button"
+          className="btn character-refresh-button"
           title={t("characters.list.refreshHint")}
           onClick={handleRefreshCharacters}
           disabled={busy}
@@ -1123,7 +1111,7 @@ function CharacterView({
             size={16}
             className={refreshingCharacters ? "is-spinning" : ""}
           />
-          <span className="sr-only">
+          <span>
             {refreshingCharacters
               ? t("common.status.refreshing")
               : t("common.actions.refresh")}
@@ -1181,7 +1169,9 @@ function CharacterView({
             onClick={() => handleFixAll("external")}
             disabled={fixRunning}
           >
-            {fixRunning ? t("common.status.opening") : t("characters.fixer.title")}
+            {fixRunning
+              ? t("common.status.opening")
+              : t("characters.fixer.title")}
           </MenuItem>
         </Menu>
       </div>
@@ -1191,7 +1181,9 @@ function CharacterView({
     <div className="character-view page page-transition-enter">
       <CharacterToolbar
         visibleCharacters={uiOnly ? sharedCharacters : operatorCharacters}
-        characters={uiOnly ? sharedCharacters : operatorCharacters}
+        characters={
+          uiOnly ? sharedCharacters : characters.filter(isOperatorCharacter)
+        }
         scope={uiOnly ? "shared" : "characters"}
         sharedMods={totalSharedMods}
         totalVisibleMods={totalVisibleMods}
@@ -1201,12 +1193,6 @@ function CharacterView({
         missingPath={missingPath}
         handleIntegratedPackageImportClick={handleIntegratedPackageImportClick}
         renderToolbarActions={renderToolbarActions}
-        isNeverness={isNeverness}
-        nevernessMode={nevernessMode}
-        handleSwitchNevernessMode={handleSwitchNevernessMode}
-        dx12Busy={dx12Busy}
-        nevernessDx12Status={nevernessDx12Status}
-        handleOpenDx12PakFolder={handleOpenDx12PakFolder}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         showAllCharacters={showAllCharacters}
@@ -1217,18 +1203,10 @@ function CharacterView({
         pendingMoveMod={pendingMoveMod}
         onCancelPendingMove={onCancelPendingMove}
       />
-      <Dx12RiskDialog
-        showDx12RiskConfirm={showDx12RiskConfirm}
-        renderManagementModal={renderManagementModal}
-        nevernessDx12Status={nevernessDx12Status}
-        setShowDx12RiskConfirm={setShowDx12RiskConfirm}
-        dx12Busy={dx12Busy}
-        confirmEnableDx12Mode={confirmEnableDx12Mode}
-      />
       {missingPath ? (
         <div className="empty-state character-view-empty">
           <div className="empty-face" aria-hidden={true}>
-            {"QAQ"}
+            <Icon name="folder" size={52} />
           </div>
           <div className="empty-title">
             {t("characters.errors.modsFolderUnset", {
@@ -1269,7 +1247,11 @@ function CharacterView({
                 }
               >
                 <div
+                  ref={looseRootReviewRef}
                   className="modal-content character-view-modal-content-layout"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={t("characters.organization.unclassifiedTitle")}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="character-view-row">
@@ -1595,7 +1577,11 @@ function CharacterView({
                 onClick={() => setShowBatchGuide(false)}
               >
                 <div
+                  ref={batchGuideRef}
                   className="batch-guide-card"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={t("characters.import.batchTitle")}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="batch-guide-hero">
@@ -1685,7 +1671,11 @@ function CharacterView({
                 onClick={() => setShowIntegratedPackageGuide(false)}
               >
                 <div
+                  ref={integratedGuideRef}
                   className="batch-guide-card integrated-package-guide-card"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={t("characters.import.integratedTitle")}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="batch-guide-hero">
@@ -1829,7 +1819,6 @@ function CharacterView({
                 handleDropReorder={handleDropReorder}
                 handleDropCover={handleDropCover}
                 characterCovers={characterCovers}
-                setCharacterCovers={setCharacterCovers}
                 renamingChar={renamingChar}
                 renameInputRef={renameInputRef}
                 renameValue={renameValue}
@@ -1842,33 +1831,32 @@ function CharacterView({
           )}
           {!uiOnly && (
             <CharacterGrid
-            setShowAddModal={setShowAddModal}
-            visibleCharacters={operatorCharacters}
-            pinnedCharacters={pinnedCharacters}
-            draggingOver={draggingOver}
-            dragOverChar={dragOverChar}
-            draggedChar={draggedChar}
-            canDragReorder={canDragReorder}
-            onSelectCharacter={onSelectCharacter}
-            openCharacterContextMenu={openCharacterContextMenu}
-            handleDragStart={handleDragStart}
-            handleDragEnd={handleDragEnd}
-            handleDragOverReorder={handleDragOverReorder}
-            setDraggingOver={setDraggingOver}
-            setDragOverChar={setDragOverChar}
-            handleDropReorder={handleDropReorder}
-            handleDropCover={handleDropCover}
-            characterCovers={characterCovers}
-            setCharacterCovers={setCharacterCovers}
-            renamingChar={renamingChar}
-            renameInputRef={renameInputRef}
-            renameValue={renameValue}
-            setRenameValue={setRenameValue}
-            handleRename={handleRename}
-            setRenamingChar={setRenamingChar}
-            showAddCard={showAllCharacters || operatorCharacters.length > 0}
-            showAllCharacters={showAllCharacters}
-            onShowAllCharacters={() => setShowAllCharacters(true)}
+              setShowAddModal={setShowAddModal}
+              visibleCharacters={operatorCharacters}
+              pinnedCharacters={pinnedCharacters}
+              draggingOver={draggingOver}
+              dragOverChar={dragOverChar}
+              draggedChar={draggedChar}
+              canDragReorder={canDragReorder}
+              onSelectCharacter={onSelectCharacter}
+              openCharacterContextMenu={openCharacterContextMenu}
+              handleDragStart={handleDragStart}
+              handleDragEnd={handleDragEnd}
+              handleDragOverReorder={handleDragOverReorder}
+              setDraggingOver={setDraggingOver}
+              setDragOverChar={setDragOverChar}
+              handleDropReorder={handleDropReorder}
+              handleDropCover={handleDropCover}
+              characterCovers={characterCovers}
+              renamingChar={renamingChar}
+              renameInputRef={renameInputRef}
+              renameValue={renameValue}
+              setRenameValue={setRenameValue}
+              handleRename={handleRename}
+              setRenamingChar={setRenamingChar}
+              showAddCard={showAllCharacters || operatorCharacters.length > 0}
+              showAllCharacters={showAllCharacters}
+              onShowAllCharacters={() => setShowAllCharacters(true)}
             />
           )}
         </React.Fragment>

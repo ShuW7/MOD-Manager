@@ -10,16 +10,9 @@ const {
 const crypto = require("crypto");
 const netQaqm = require("../net/qaqm.cjs");
 const overlayHelperPaths = require("../overlay/helper-paths.cjs");
-const managedPaths = require("../runtime/managed-paths.cjs");
-const { getDataRoot } = require("../runtime/data-paths.cjs");
 const CONFIG_PATH = path.join(electron.app.getPath("userData"), "config.json");
 const BASE_DEFAULT_CONFIG = {
   language: "zh-CN",
-  modsPath: "",
-  gamePath: "",
-  loaderPath: "",
-  efmiPath: "",
-  xxmiPath: "",
   serverUrl: netQaqm.DEFAULT_SERVER_URL,
   characterUsage: {},
   // Map of characterName -> timestamp
@@ -28,7 +21,6 @@ const BASE_DEFAULT_CONFIG = {
   characterSkinCatalogIdentityByGame: {},
   activeSkinId: null,
   // Currently active skin ID
-  // Multi-game support
   games: [],
   // Array of game configs
   activeGameId: null,
@@ -57,6 +49,11 @@ function createDefaultConfig() {
 const CONFIG_BAK_PATH = CONFIG_PATH + ".bak";
 const CONFIG_TMP_PATH = CONFIG_PATH + ".tmp";
 function applyConfigFieldDefaults(parsed, defaults) {
+  // Drop fields that belonged to the retired multi-game layout. Keeping them
+  // would let stale loader paths keep influencing path warnings and backups.
+  for (const legacyKey of ["modsPath", "gamePath", "loaderPath", "efmiPath", "xxmiPath", "managedXxmiRoot", "nevernessModMode"]) {
+    delete parsed[legacyKey];
+  }
   const normalizedServerUrl = netQaqm.normalizePersistedServerUrlInput(parsed.serverUrl);
   if (!normalizedServerUrl) {
     delete parsed.serverUrl;
@@ -129,7 +126,6 @@ function loadConfig() {
 }
 function saveConfig(config) {
   try {
-    managedPaths.remapManagedPaths(config, managedPaths.readManagedPathMappings(getDataRoot()));
     const payload = JSON.stringify(config, null, 2);
     const fd = fs.openSync(CONFIG_TMP_PATH, "w");
     try {
@@ -144,7 +140,6 @@ function saveConfig(config) {
       try {
         const current = fs.readFileSync(CONFIG_PATH, "utf-8");
         const previous = JSON.parse(current);
-        managedPaths.remapManagedPaths(previous, managedPaths.readManagedPathMappings(getDataRoot()));
         fs.writeFileSync(CONFIG_BAK_PATH, JSON.stringify(previous, null, 2));
       } catch (_) {}
     }
@@ -256,11 +251,6 @@ function isStrongCompatibilityModeEnabled() {
 function initialize() {
   migrateFromV3();
   currentConfig = loadConfig();
-  const dataRoot = getDataRoot();
-  const mappings = managedPaths.readManagedPathMappings(dataRoot);
-  if (managedPaths.remapManagedPaths(currentConfig, mappings).changes) saveConfig(currentConfig);
-  const repaired = managedPaths.repairManagedRuntimeFiles(electron.app.getPath("userData"), dataRoot, mappings);
-  for (const issue of repaired.errors) console.warn("Runtime path migration deferred:", issue.file, issue.error);
   if (currentConfig.persistBridgeSettingsVersion !== 1 && fs.existsSync(CONFIG_PATH)) {
     const migrationBackup = CONFIG_PATH + ".before-per-game-persist.bak";
     if (!fs.existsSync(migrationBackup)) fs.copyFileSync(CONFIG_PATH, migrationBackup);

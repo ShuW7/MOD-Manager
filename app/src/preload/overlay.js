@@ -70,7 +70,7 @@ contextBridge.exposeInMainWorld("overlayApi", {
   onGamesChanged: (callback) =>
     ipcRenderer.on("games-changed", (_, data) => callback(data)),
   onWindowShown: (callback) =>
-    ipcRenderer.on("overlay-window-shown", () => callback()),
+    ipcRenderer.on("overlay-window-shown", (_, data) => callback(data)),
   onWindowHidden: (callback) =>
     ipcRenderer.on("overlay-window-hidden", () => callback()),
   onOverlayScaleChanged: (callback) =>

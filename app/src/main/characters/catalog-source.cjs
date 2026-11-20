@@ -5,22 +5,10 @@ const {
   writeJsonFileSync
 } = require("../core/json-store.cjs");
 const SOURCES = {
-  arknights: ['https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/master/zh_CN/gamedata/excel/character_table.json'],
-  'genshin-impact': require("../games/genshin/catalog.cjs").CHARACTER_SOURCES,
-  'wuthering-waves': ['https://api.encore.moe/zh-Hans/character', 'https://api.encore.moe/en/character'],
-  zzz: ['https://raw.githubusercontent.com/EnkaNetwork/API-docs/master/store/zzz/avatars.json', 'https://raw.githubusercontent.com/EnkaNetwork/API-docs/master/store/zzz/locs.json'],
-  'honkai-star-rail': ['https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/cn/characters.json', 'https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/en/characters.json'],
-  endfield: ['https://endfield.hypergryph.com/operator'],
-  'neverness-to-everness': ['https://wiki.mysqil.com/characters/']
+  arknights: ['https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/master/zh_CN/gamedata/excel/character_table.json']
 };
 const RESOURCE_DIRS = {
-  arknights: 'arknights',
-  'genshin-impact': 'genshin-impact',
-  'wuthering-waves': 'wuwa',
-  zzz: 'zzz',
-  'honkai-star-rail': 'honkai-star-rail',
-  endfield: 'endfield',
-  'neverness-to-everness': 'neverness-to-everness'
+  arknights: 'arknights'
 };
 const CATEGORIES = new Set(['NPC', '其他', 'UI', '功能', '大世界', '武器', '载具', '滑翔翼', '光锥']);
 const safeName = value => typeof value === 'string' && value.length > 0 && value.length <= 100 && !/[<>:"/\\|?*\x00-\x1f]/.test(value) && !/[. ]$/.test(value) && !/^(\.{1,2}|CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(value);
@@ -28,13 +16,12 @@ function imageUrl(value) {
   try {
     const url = new URL(value);
     if (url.protocol !== 'https:' || url.username || url.password) return null;
-    const hosts = ['api.encore.moe', 'enka.network', 'raw.githubusercontent.com', 'web.hycdn.cn', 'wiki.mysqil.com', 'static.wikia.nocookie.net', 'hw-media-cdn-mingchao.kurogame.com'];
+    const hosts = ['raw.githubusercontent.com', 'web.hycdn.cn'];
     return hosts.includes(url.hostname) ? url.href : null;
   } catch {
     return null;
   }
 }
-const decode = value => String(value || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim();
 function normalizeRecords(records) {
   if (!Array.isArray(records) || records.length > 2000) throw Error(i18n.t("backend.characterCatalog.invalidCharacterList"));
   const valid = records.filter(item => item && safeName(item.name)).map(item => ({
@@ -47,69 +34,18 @@ function normalizeRecords(records) {
   return valid;
 }
 function parseSource(gameId, texts) {
-  let records;
-  if (gameId === 'arknights') {
-    records = Object.entries(JSON.parse(texts[0])).filter(([id, item]) => /^char_\d+_[a-z0-9]+$/i.test(id) && item.isNotObtainable !== true).map(([id, item]) => ({
-      name: item.name,
-      en: id,
-      aliases: [id, item.appellation].filter(Boolean),
-      image: `https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/cn/assets/dyn/arts/charavatars/${id}.png`
-    }));
-  } else if (gameId === 'genshin-impact') {
-    records = require("../games/genshin/catalog.cjs").parseCharacters(...texts.map(text => JSON.parse(text)));
-  } else if (gameId === 'wuthering-waves') {
-    const english = new Map(JSON.parse(texts[1]).roleList.map(item => [item.Id, item.Name]));
-    records = JSON.parse(texts[0]).roleList.filter(item => !item.Name.startsWith('漂泊者')).map(item => ({
-      name: item.Name === '西格莉卡' ? '希格莉卡' : item.Name,
-      en: english.get(item.Id),
-      image: item.RoleHeadIcon,
-      aliases: item.Name === '西格莉卡' ? [item.Name] : []
-    }));
-  } else if (gameId === 'zzz') {
-    const loc = JSON.parse(texts[1]);
-    records = Object.values(JSON.parse(texts[0])).map(item => ({
-      name: loc['zh-cn']?.[item.Name]?.replace(/[「」]/g, ''),
-      en: loc.en?.[item.Name],
-      image: new URL(item.Image, 'https://enka.network').href
-    }));
-  } else if (gameId === 'honkai-star-rail') {
-    const english = JSON.parse(texts[1]);
-    const variants = {
-      '1001': '三月七-存护',
-      '1224': '三月七-巡猎',
-      '1213': '丹恒-饮月',
-      '1414': '丹恒-腾荒'
-    };
-    records = Object.values(JSON.parse(texts[0])).filter(item => !item.name.includes('{')).map(item => ({
-      name: variants[item.id] || item.name,
-      en: english[item.id]?.name,
-      image: new URL(item.preview || item.icon, 'https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/').href
-    }));
-  } else if (gameId === 'endfield') {
-    records = [...texts[0].matchAll(/background-image:url\((https:[^)]+)\)[\s\S]*?OperatorItem_nameText[^>]*>([^<]+)<[\s\S]*?OperatorItem_codename[^>]*>\/\/ ([^<]+)</g)].map(match => ({
-      name: decode(match[2]),
-      en: decode(match[3]),
-      image: decode(match[1])
-    })).filter(item => item.name !== '管理员');
-  } else if (gameId === 'neverness-to-everness') {
-    const aliases = {
-      '埃德嘉': '埃德加',
-      '法帝娅': '法蒂亚',
-      '达芙蒂尔': '达芙迪尔',
-      '灵可': '凛子',
-      '黑羽': '黑鸟'
-    };
-    records = [...texts[0].matchAll(/<img\b[^>]*src="(\/images\/characters\/[^"]+)"[^>]*alt="([^"]+)"/g)].map(match => ({
-      name: aliases[decode(match[2])] || decode(match[2]),
-      aliases: [decode(match[2])],
-      image: new URL(match[1], SOURCES[gameId][0]).href
-    })).filter(item => item.name !== '零');
-  } else throw Error(i18n.t("backend.characterCatalog.unsupportedCharacterSource"));
+  if (gameId !== 'arknights') throw Error(i18n.t("backend.characterCatalog.unsupportedCharacterSource"));
+  const records = Object.entries(JSON.parse(texts[0])).filter(([id, item]) => /^char_\d+_[a-z0-9]+$/i.test(id) && item.isNotObtainable !== true).map(([id, item]) => ({
+    name: item.name,
+    en: id,
+    aliases: [id, item.appellation].filter(Boolean),
+    image: `https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/cn/assets/dyn/arts/charavatars/${id}.png`
+  }));
   return normalizeRecords(records);
 }
 async function fetchCharacters(gameId, fetchFn = fetch) {
   if (!Object.hasOwn(SOURCES, gameId)) throw Error(i18n.t("backend.characterCatalog.unsupportedGame"));
-  const maxBytes = gameId === 'arknights' ? 48 * 1024 * 1024 : 4 * 1024 * 1024;
+  const maxBytes = 48 * 1024 * 1024;
   const texts = await Promise.all(SOURCES[gameId].map(async url => {
     const response = await fetchFn(url, {
       signal: AbortSignal.timeout(12000)

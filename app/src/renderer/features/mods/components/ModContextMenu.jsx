@@ -8,7 +8,6 @@ export function ModContextMenu({
   handlePinMod,
   handleRequestRenameMod,
   openModSourceFolder,
-  isDx12PakMod,
   handleRequestMoveMod,
   handleFixMod,
   fixRunning,
@@ -97,9 +96,7 @@ export function ModContextMenu({
             }}
             className="mod-context-menu-action"
           >
-            {isDx12PakMod(modContextMenu.mod)
-              ? t("mods.actions.open")
-              : t("characters.actions.openSource")}
+            {t("characters.actions.openSource")}
           </button>
           <button
             onClick={async () => {

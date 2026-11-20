@@ -45,7 +45,6 @@ const api = {
   selectModsFolder: (gameId) => electron.ipcRenderer.invoke("select-mods-folder", gameId),
   selectGamePath: (gameId) => electron.ipcRenderer.invoke("select-game-path", gameId),
   selectOfficialLauncherPath: (gameId) => electron.ipcRenderer.invoke("select-official-launcher-path", gameId),
-  selectLoaderPath: () => electron.ipcRenderer.invoke("select-loader-path"),
   autoDetectPaths: (gameId) => electron.ipcRenderer.invoke("auto-detect-paths", gameId),
   launchGame: (options) => electron.ipcRenderer.invoke("launch-game", options),
   arknightsStatus: () => electron.ipcRenderer.invoke("arknights:status"),
@@ -116,28 +115,6 @@ const api = {
   setModPreview: (characterName, modName, imagePath) => electron.ipcRenderer.invoke("set-mod-preview", { characterName, modName, imagePath }),
   setModPreviewFromData: (characterName, modName, dataUrl) => electron.ipcRenderer.invoke("set-mod-preview-from-data", { characterName, modName, dataUrl }),
   // Mod Market APIs (with local cache support)
-  modSiteDescribe: (payload) => electron.ipcRenderer.invoke('mod-sites:describe', payload),
-  modSiteOpen: (payload) => electron.ipcRenderer.invoke('mod-sites:open', payload),
-  modSiteResize: (payload) => electron.ipcRenderer.invoke('mod-sites:resize', payload),
-  modSiteHide: (payload) => electron.ipcRenderer.invoke('mod-sites:hide', payload),
-  modSiteReload: (payload) => electron.ipcRenderer.invoke('mod-sites:reload', payload),
-  modSiteFinish: (payload) => electron.ipcRenderer.invoke('mod-sites:finish', payload),
-  modSiteList: (payload) => electron.ipcRenderer.invoke('mod-sites:list', payload),
-  modSiteGetPost: (payload) => electron.ipcRenderer.invoke('mod-sites:detail', payload),
-  modSiteImage: (payload) => electron.ipcRenderer.invoke('mod-sites:media', payload),
-  modSiteSetContext: (payload) => electron.ipcRenderer.invoke('mod-sites:setContext', payload),
-  modSiteCatalog: () => electron.ipcRenderer.invoke('mod-sites:listSites'),
-  modSiteCreate: (payload) => electron.ipcRenderer.invoke('mod-sites:addSite', payload),
-  modSiteDelete: (payload) => electron.ipcRenderer.invoke('mod-sites:removeSite', payload),
-  modSiteClear: (payload) => electron.ipcRenderer.invoke('mod-sites:clear', payload),
-  modSiteConfigure: (payload) => electron.ipcRenderer.invoke('mod-sites:configure', payload),
-  gamebananaList: (payload) => electron.ipcRenderer.invoke('gamebanana:list', payload),
-  gamebananaDetail: (payload) => electron.ipcRenderer.invoke('gamebanana:detail', payload),
-  onModSiteChanged: (callback) => {
-    const handler = (_event, payload) => callback(payload);
-    electron.ipcRenderer.on('mod-sites:changed', handler);
-    return () => electron.ipcRenderer.removeListener('mod-sites:changed', handler);
-  },
   pawchiveGetState: () => electron.ipcRenderer.invoke("pawchive:get-state"),
   kemonoGetState: () => electron.ipcRenderer.invoke("kemono:get-state"),
   kemonoListCreators: (options) => electron.ipcRenderer.invoke("kemono:list-creators", options),
@@ -239,15 +216,6 @@ const api = {
   configExport: () => electron.ipcRenderer.invoke("config:export"),
   configImport: () => electron.ipcRenderer.invoke("config:import"),
   // Mod Auto-Update Detection
-  // Multi-Game Management
-  gameList: () => electron.ipcRenderer.invoke("game:list"),
-  gameAdd: (game) => electron.ipcRenderer.invoke("game:add", game),
-  gameUpdate: (gameId, updates) => electron.ipcRenderer.invoke("game:update", { gameId, updates }),
-  gameDelete: (gameId) => electron.ipcRenderer.invoke("game:delete", gameId),
-  gameSwitch: (gameId) => electron.ipcRenderer.invoke("game:switch", gameId),
-  gameSetHidden: (gameId, hidden, nextGameId) => electron.ipcRenderer.invoke("game:set-hidden", { gameId, hidden, nextGameId }),
-  gameSelectFolder: (title, options) => electron.ipcRenderer.invoke("game:select-folder", title, options || {}),
-  gameSelectExe: (title) => electron.ipcRenderer.invoke("game:select-exe", title),
   // v4.0: Generic file picker
   selectFile: (options) => electron.ipcRenderer.invoke("select-file", options),
   // v5.0: Listen for mod changes from overlay
@@ -408,42 +376,6 @@ const api = {
     electron.ipcRenderer.on("dev:batch-done", handler);
     return () => electron.ipcRenderer.removeListener("dev:batch-done", handler);
   },
-  // Autoinstall (Setup Wizard)
-  xxmiStatus: (gameId) => electron.ipcRenderer.invoke("xxmi:status", gameId),
-  xxmiCheck: (gameId) => electron.ipcRenderer.invoke("xxmi:check", gameId),
-  xxmiInstall: (opts) => electron.ipcRenderer.invoke("xxmi:install", opts),
-  xxmiForkApply: (opts) => electron.ipcRenderer.invoke("xxmi:fork-apply", opts),
-  xxmiForkRestore: (opts) => electron.ipcRenderer.invoke("xxmi:fork-restore", opts),
-  onXxmiProgress: (cb) => {
-    const handler = (_, data) => cb(data);
-    electron.ipcRenderer.on("xxmi:progress", handler);
-    return () => electron.ipcRenderer.removeListener("xxmi:progress", handler);
-  },
-  onXxmiChanged: (cb) => {
-    const handler = (_, data) => cb(data);
-    electron.ipcRenderer.on("xxmi:changed", handler);
-    return () => electron.ipcRenderer.removeListener("xxmi:changed", handler);
-  },
-  autoinstallGetBundledPackages: () => electron.ipcRenderer.invoke("autoinstall:get-bundled-packages"),
-  autoinstallSelectFolder: (title, options) => electron.ipcRenderer.invoke("autoinstall:select-folder", title, options || {}),
-  autoinstallSelectZip: (title) => electron.ipcRenderer.invoke("autoinstall:select-zip", title),
-  autoinstallSelectUpdateSource: (title) => electron.ipcRenderer.invoke("autoinstall:select-update-source", title),
-  autoinstallSelectModSource: (title) => electron.ipcRenderer.invoke("autoinstall:select-mod-source", title),
-  autoinstallInstallXxmi: (opts) => electron.ipcRenderer.invoke("autoinstall:install-xxmi", opts),
-  autoinstallInstallNemi: (opts) => electron.ipcRenderer.invoke("autoinstall:install-nemi", opts),
-  autoinstallInstallGamePackage: (opts) => electron.ipcRenderer.invoke("autoinstall:install-game-package", opts),
-  autoinstallConfigureXxmi: (opts) => electron.ipcRenderer.invoke("autoinstall:configure-xxmi", opts),
-  autoinstallApplyPaths: (opts) => electron.ipcRenderer.invoke("autoinstall:apply-paths", opts),
-  autoinstallImportMods: (opts) => electron.ipcRenderer.invoke("autoinstall:import-mods", opts),
-  autoinstallUpdateXxmi: (opts) => electron.ipcRenderer.invoke("autoinstall:update-xxmi", opts),
-  autoinstallUpdateGamePackage: (opts) => electron.ipcRenderer.invoke("autoinstall:update-game-package", opts),
-  autoinstallDetectGamePath: (gameId) => electron.ipcRenderer.invoke("autoinstall:detect-game-path", gameId),
-  onAutoinstallProgress: (cb) => {
-    const handler = (_, data) => cb(data);
-    electron.ipcRenderer.on("autoinstall:progress", handler);
-    return () => electron.ipcRenderer.removeListener("autoinstall:progress", handler);
-  },
-
 };
 if (process.contextIsolated) {
   try {

@@ -88,17 +88,8 @@ function dataTransferIncludesCoverImage(dataTransfer) {
   }
   return false;
 }
-function readNevernessModeFallback(activeGame) {
-  if (activeGame?.id !== "neverness-to-everness") return null;
-  try {
-    const cachedMode = localStorage.getItem("neverness-mod-mode");
-    if (cachedMode === "dx12" || cachedMode === "nemi") return cachedMode;
-  } catch {}
-  return activeGame?.launchMode === "DX12" ? "dx12" : "nemi";
-}
 export {
   getCharacterCustomOrderKey,
-  readNevernessModeFallback,
   readCharacterPinnedSet,
   getCharacterPinnedStorageKey,
   getCharacterShowAllStorageKey,

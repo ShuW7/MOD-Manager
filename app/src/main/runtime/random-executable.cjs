@@ -21,8 +21,7 @@ const ordinaryFile = file => {
 };
 function getRandomLaunchSettings(config = {}) {
   return {
-    manager: config.randomLaunch?.manager !== false,
-    xxmi: config.randomLaunch?.xxmi !== false
+    manager: config.randomLaunch?.manager !== false
   };
 }
 function readRandomLaunchSettings(profile) {

@@ -33,6 +33,7 @@ function BatchCloudPanel({ gameId, onClose }) {
   );
   const [fillRunning, setFillRunning] = React.useState(false);
   const [fillResult, setFillResult] = React.useState(null);
+  const busy = running || fillRunning;
   const logEndRef = React.useRef(null);
   const cleanupRef = React.useRef([]);
   React.useEffect(() => {
@@ -147,6 +148,13 @@ function BatchCloudPanel({ gameId, onClose }) {
   }
   async function startOperation(opMode, extraParams = {}) {
     const { _keepLogs, ...restParams } = extraParams;
+    // Release listeners from a previous run before attaching a new pair.
+    for (const cleanup of cleanupRef.current) {
+      try {
+        cleanup?.();
+      } catch {}
+    }
+    cleanupRef.current = [];
     setMode(opMode);
     setRunning(true);
     if (!_keepLogs) setLogs([]);
@@ -206,6 +214,12 @@ function BatchCloudPanel({ gameId, onClose }) {
     });
     const cleanupDone = window.api.onBatchCloudDone(({ exitCode }) => {
       setRunning(false);
+      for (const cleanup of cleanupRef.current) {
+        try {
+          cleanup?.();
+        } catch {}
+      }
+      cleanupRef.current = [];
       if (exitCode !== 0 && !result) {
         setResult(
           (prev) =>
@@ -224,22 +238,33 @@ function BatchCloudPanel({ gameId, onClose }) {
       }
     });
     cleanupRef.current = [cleanupProgress, cleanupDone];
-    const r = await window.api.devBatchCloudOp({
-      mode: opMode,
-      gameId: gameId || "endfield",
-      characters: charFilter,
-      password: "qsl",
-      force,
-      pythonPath: devConfig.pythonPath,
-      scriptPath: devConfig.scriptPath,
-      modNames: modNamesFilter,
-      ...restParams,
-    });
-    if (!r.success) {
+    try {
+      const r = await window.api.devBatchCloudOp({
+        mode: opMode,
+        gameId: gameId || "arknights",
+        characters: charFilter,
+        password: "qsl",
+        force,
+        pythonPath: devConfig.pythonPath,
+        scriptPath: devConfig.scriptPath,
+        modNames: modNamesFilter,
+        ...restParams,
+      });
+      if (!r.success) {
+        setLogs((prev) => [
+          ...prev,
+          {
+            message: `${r.error}`,
+            level: "error",
+          },
+        ]);
+        setRunning(false);
+      }
+    } catch (error) {
       setLogs((prev) => [
         ...prev,
         {
-          message: `${r.error}`,
+          message: error?.message || String(error),
           level: "error",
         },
       ]);
@@ -401,7 +426,12 @@ function BatchCloudPanel({ gameId, onClose }) {
     modsByCharacter[m.char].push(m);
   });
   return ReactDOM.createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
+    <div
+      className="modal-backdrop"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !busy) onClose();
+      }}
+    >
       <div
         className="dev-panel"
         role="dialog"
@@ -415,13 +445,14 @@ function BatchCloudPanel({ gameId, onClose }) {
               {t("market.cloud.batchTitle")}
             </h2>
             <span className="dev-panel-sub">
-              {t("market.cloud.gameLabel", { gameId: gameId || "endfield" })}
+              {t("market.cloud.gameLabel", { gameId: gameId || "arknights" })}
             </span>
           </div>
           <button
             type="button"
             className="icon-btn icon-btn-sm"
             onClick={onClose}
+            disabled={busy}
             aria-label={t("common.actions.close")}
             title={t("common.actions.close")}
           >
@@ -675,7 +706,7 @@ function BatchCloudPanel({ gameId, onClose }) {
                     type="button"
                     className="btn btn-sm"
                     onClick={republishSelected}
-                    disabled={running}
+                    disabled={busy}
                   >
                     {t("market.cloud.publishSelected")}
                   </button>
@@ -720,14 +751,14 @@ function BatchCloudPanel({ gameId, onClose }) {
             </button>
           )}
           <span className="dev-panel-foot-spacer" />
-          <button type="button" className="btn" onClick={onClose} disabled={running}>
+          <button type="button" className="btn" onClick={onClose} disabled={busy}>
             {t("common.actions.close")}
           </button>
           <button
             type="button"
             className="btn"
             onClick={() => startOperation("list-cloud")}
-            disabled={running}
+            disabled={busy}
           >
             {t("market.cloud.compare")}
           </button>
@@ -735,7 +766,7 @@ function BatchCloudPanel({ gameId, onClose }) {
             type="button"
             className="btn"
             onClick={() => startOperation("replace")}
-            disabled={running}
+            disabled={busy}
           >
             {t("market.cloud.replaceLinks")}
           </button>
@@ -743,7 +774,7 @@ function BatchCloudPanel({ gameId, onClose }) {
             type="button"
             className="btn"
             onClick={() => startOperation("sync-upload")}
-            disabled={running}
+            disabled={busy}
           >
             {t("market.cloud.uploadMissing")}
           </button>
@@ -751,7 +782,7 @@ function BatchCloudPanel({ gameId, onClose }) {
             type="button"
             className="btn"
             onClick={smartUploadWithFilter}
-            disabled={running}
+            disabled={busy}
           >
             {t("market.cloud.uploadWithImages")}
           </button>
@@ -759,7 +790,7 @@ function BatchCloudPanel({ gameId, onClose }) {
             type="button"
             className="btn btn-primary"
             onClick={() => startOperation("upload")}
-            disabled={running}
+            disabled={busy}
           >
             {t("market.cloud.uploadAll")}
           </button>

@@ -22,6 +22,8 @@
   "status": {
     "loading": "正在加载市场…",
     "noMatchingMods": "没有结果",
+    "accessRequired": "需要登录或访问受限",
+    "accessRequiredHint": "当前账号无法读取市场内容。请打开官网登录后点击“重新检测登录状态”，或稍后重试。",
     "pageSummary": "{{currentPage}} / {{totalPages}} 页 · 共 {{sectionedDisplayedModsCount}} 个"
   },
   "errors": {
@@ -188,9 +190,13 @@
   },
   "downloadPrompt": {
     "unavailableTitle": "暂时无法直接下载",
-    "sessionExpired": "登录已失效，改用外部链接",
-    "loginRequired": "直接下载需要登录，改用外部链接",
-    "sourceUnavailable": "下载源暂不可用，改用外部链接"
+    "sessionExpired": "登录已失效。请重新登录后点击“重新检测登录状态”，或改用外部链接。",
+    "loginRequired": "直接下载需要登录。可打开官网登录后点击“重新检测登录状态”，或改用外部链接。",
+    "sourceUnavailable": "下载源暂不可用，改用外部链接",
+    "openLogin": "打开官网登录",
+    "recheckLogin": "重新检测登录状态",
+    "loginDetected": "已检测到登录状态",
+    "stillLoggedOut": "仍未检测到登录，请先在官网完成登录"
   },
   "header": {
     "openWebsite": "打开网页版市场",

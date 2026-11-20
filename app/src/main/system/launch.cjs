@@ -13,10 +13,6 @@ function buildElevationScript(executablePath, workingDir, args) {
 }
 function getDirectLaunchMode(game) {
   if (game?.id === 'arknights') return 'ARKNIGHTS';
-  if (game?.id === 'wuthering-waves' && game.wuwaDx12Enabled === true) return 'WWMI-DX12';
-  const importer = { 'genshin-impact': 'GIMI', endfield: 'EFMI', 'wuthering-waves': 'WWMI', zzz: 'ZZMI', 'honkai-star-rail': 'SRMI' }[game?.id];
-  if (importer) return importer;
-  if (game?.id === 'neverness-to-everness') return game.launchMode === 'DX12' ? 'DX12' : 'NEMI';
   return null;
 }
 function createWindowsLauncher({ isElevated, spawn = childProcess.spawn, execFile = childProcess.execFile, platform = process.platform } = {}) {

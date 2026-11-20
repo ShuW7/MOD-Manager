@@ -16,7 +16,9 @@
     "downloads": "Downloads"
   },
   "status": {
-    "loading": "Loading market…"
+    "loading": "Loading market…",
+    "accessRequired": "Sign-in or market access required",
+    "accessRequiredHint": "This account cannot read market content. Open the website to sign in, choose Recheck login, or retry later."
   },
   "errors": {
     "load": "Failed to load market",
@@ -25,5 +27,15 @@
   },
   "filters": {
     "functionCategory": "Utilities"
+  },
+  "downloadPrompt": {
+    "unavailableTitle": "Direct download is unavailable",
+    "sessionExpired": "Your session expired. Sign in again, then choose Recheck login, or use an external link.",
+    "loginRequired": "Direct download requires sign-in. Open the website, sign in, then choose Recheck login, or use an external link.",
+    "sourceUnavailable": "This download source is temporarily unavailable; use an external link.",
+    "openLogin": "Open website to sign in",
+    "recheckLogin": "Recheck login",
+    "loginDetected": "Signed-in session detected",
+    "stillLoggedOut": "Still not signed in. Please finish signing in on the website first."
   }
 }

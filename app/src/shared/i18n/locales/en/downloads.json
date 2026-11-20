@@ -5,7 +5,8 @@
     "resume": "Resume",
     "cancel": "Cancel download",
     "retry": "Download again",
-    "clearCompleted": "Clear completed"
+    "clearCompleted": "Clear completed",
+    "reimport": "Import again"
   },
   "status": {
     "waiting": "Waiting",
@@ -14,25 +15,11 @@
     "completed": "Completed",
     "failed": "Download failed",
     "canceled": "Canceled",
-    "extracting": "Extracting…"
+    "extracting": "Extracting…",
+    "imported": "Imported"
   },
   "modules": {
     "extract": "Extract module"
   },
-  "empty": "No downloads yet",
-  "siteManager": {
-    "title": "Site manager",
-    "description": "Add your own Arknights Mod sites, or remove sites you created.",
-    "builtIn": "Built in",
-    "delete": "Delete",
-    "deleting": "Deleting…",
-    "addTitle": "New site",
-    "name": "Site name",
-    "namePlaceholder": "For example: Arknights Mods",
-    "url": "Site URL (HTTPS)",
-    "add": "Create site",
-    "createFailed": "Could not create site",
-    "deleteFailed": "Could not delete site",
-    "manage": "Manage sites"
-  }
+  "empty": "No downloads yet"
 }

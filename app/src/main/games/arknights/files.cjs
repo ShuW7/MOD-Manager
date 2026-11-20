@@ -44,7 +44,7 @@ function walk(root, { includeDisabled = false, maxBytes = 2 * 1024 * 1024 * 1024
         const stat = fs.statSync(file);
         bytes += stat.size;
         if (stat.size > 512 * 1024 * 1024 || bytes > maxBytes) throw Error(i18n.t("arknights.errors.tooLarge"));
-        files.push({ path: file, relative: path.relative(root, file), name: entry.name, ext: path.extname(entry.name).toLowerCase(), size: stat.size, mtimeMs: stat.mtimeMs });
+        files.push({ path: file, relative: path.relative(root, file), name: entry.name, ext: path.extname(entry.name).toLowerCase(), size: stat.size, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, ino: stat.ino, dev: stat.dev });
       }
       if (files.length > maxFiles) throw Error(i18n.t("arknights.errors.tooLarge"));
     }
@@ -98,7 +98,7 @@ function readBindings(root) {
           if (item.appearanceAliases != null && (!Array.isArray(item.appearanceAliases) || item.appearanceAliases.length > 32 || item.appearanceAliases.some(alias => typeof alias !== "string" || !alias || alias.length > 512 || /[\x00-\x1f]/.test(alias)))) throw Error(i18n.t("arknights.errors.invalidManifest"));
           bindings.set(resource.toLowerCase(), { bundle, target, ...(item.appearanceAliases ? { appearanceAliases: item.appearanceAliases } : {}) });
         }
-        manifests.push({ path: file, relative: path.relative(root, file), size: stat.size, mtimeMs: stat.mtimeMs });
+        manifests.push({ path: file, relative: path.relative(root, file), size: stat.size, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, ino: stat.ino, dev: stat.dev });
       } else if (entry.isDirectory() && !ignored(entry.name) && !DISABLED.test(entry.name)) {
         if (!checkedStat(file)?.isDirectory()) throw Error(i18n.t("arknights.errors.invalidManifest"));
         checkedDirectories.add(path.resolve(file));
@@ -137,16 +137,21 @@ function inspect(root) {
   }
   return { files, resources, bundles, collisions, identities, manifests, keys: [...seen.keys()], ab: abMod.readConfig(root), kind: bundles.length ? "bundle" : resources.length ? "m4a" : "unknown" };
 }
-function fingerprint(root, options = {}) {
+function fingerprint(root, options = {}, memo) {
+  const inputs = [...walk(root, { ...options, includeDisabled: true }), ...readBindings(root).manifests].sort((a, b) => a.relative.localeCompare(b.relative));
+  const version = memo && JSON.stringify(inputs.map(file => [file.relative, file.dev, file.ino, file.size, file.mtimeMs, file.ctimeMs]));
+  if (memo && memo.root === root && memo.version === version) return memo.hash;
   const digest = crypto.createHash("sha256");
   const buffer = Buffer.alloc(1024 * 1024);
-  for (const file of [...walk(root, { ...options, includeDisabled: true }), ...readBindings(root).manifests].sort((a, b) => a.relative.localeCompare(b.relative))) {
+  for (const file of inputs) {
     digest.update(file.relative);
     const fd = fs.openSync(file.path, "r");
     try { let size; while ((size = fs.readSync(fd, buffer, 0, buffer.length, null)) > 0) digest.update(buffer.subarray(0, size)); }
     finally { fs.closeSync(fd); }
   }
-  return digest.digest("hex");
+  const hash = digest.digest("hex");
+  if (memo) Object.assign(memo, { root, version, hash });
+  return hash;
 }
 function assertLoadable(root) {
   const result = inspect(root);

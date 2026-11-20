@@ -16,10 +16,8 @@ const fs = require("fs");
 const charactersCleanup = require("../characters/cleanup.cjs");
 const charactersDirectories = require("../characters/directories.cjs");
 const charactersSkins = require("../characters/skins.cjs");
-const gamesNevernessLoader = require("../games/neverness/loader.cjs");
 const gamesSettings = require("../games/settings.cjs");
 const modsMetadata = require("./metadata.cjs");
-const modsNevernessPaks = require("../games/neverness/paks.cjs");
 const systemPaths = require("../system/paths.cjs");
 function getStoredModAppearanceSectionId(meta) {
   return charactersSkins.normalizeAppearanceSectionId(meta?.qaqm?.appearanceSectionId || meta?.appearanceSectionId || "");
@@ -159,30 +157,9 @@ function assignInstalledModAppearance({
 }
 function resolveExistingModDirectoryAnyMode(characterName, modName, gameId2 = gamesSettings.getActiveGameScopeId()) {
   const safeModName = charactersSkins.assertSafeAppearancePathSegment(modName, i18n.t("backend.validation.modName"));
-  if (!gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-    const resolved = charactersDirectories.resolveExistingStandardModDirectory(characterName, safeModName, gameId2);
-    if (!resolved?.modPath || !systemPaths.isPathInsideDirectory(resolved.modPath, resolved.charPath)) return null;
-    return resolved;
-  }
-  const paths = gamesNevernessLoader.getNevernessDx12Paths(gameId2);
-  const activeCharPath = modsNevernessPaks.getNevernessDx12CharacterPath(characterName, {
-    ensure: true,
-    gameId: gameId2
-  });
-  const disabledCharPath = modsNevernessPaks.getNevernessDx12DisabledCharacterPath(characterName, paths, {
-    gameId: gameId2
-  });
-  const candidates = [activeCharPath ? path.join(activeCharPath, safeModName) : "", activeCharPath ? path.join(activeCharPath, `DISABLED_${safeModName}`) : "", disabledCharPath ? path.join(disabledCharPath, safeModName) : "", disabledCharPath ? path.join(disabledCharPath, `DISABLED_${safeModName}`) : ""].filter(Boolean);
-  const allowedRoots = [activeCharPath, disabledCharPath].filter(Boolean);
-  const modPath = candidates.find(candidate => allowedRoots.some(root => systemPaths.isPathInsideDirectory(candidate, root)) && fs.existsSync(candidate));
-  if (!modPath) return null;
-  const folderName = path.basename(modPath);
-  return {
-    charPath: path.dirname(modPath),
-    modPath,
-    folderName,
-    enabled: !!activeCharPath && systemPaths.isPathInsideDirectory(modPath, activeCharPath) && !folderName.startsWith("DISABLED_")
-  };
+  const resolved = charactersDirectories.resolveExistingStandardModDirectory(characterName, safeModName, gameId2);
+  if (!resolved?.modPath || !systemPaths.isPathInsideDirectory(resolved.modPath, resolved.charPath)) return null;
+  return resolved;
 }
 function resolveAppearanceCharacterContext(characterName, gameId2 = gamesSettings.getActiveGameScopeId()) {
   const safeCharacterName = charactersSkins.assertSafeAppearancePathSegment(characterName, i18n.t("backend.validation.characterName"));
@@ -198,22 +175,6 @@ function resolveAppearanceCharacterContext(characterName, gameId2 = gamesSetting
   };
 }
 function listModDirectoryRecordsForCharacter(characterName, gameId2 = gamesSettings.getActiveGameScopeId()) {
-  if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-    const paths = gamesNevernessLoader.getNevernessDx12Paths(gameId2);
-    const activeCharPath = modsNevernessPaks.getNevernessDx12CharacterPath(characterName, {
-      ensure: true,
-      gameId: gameId2
-    });
-    const disabledCharPath = modsNevernessPaks.getNevernessDx12DisabledCharacterPath(characterName, paths, {
-      gameId: gameId2
-    });
-    return [activeCharPath, disabledCharPath].filter(dirPath => dirPath && fs.existsSync(dirPath)).flatMap(dirPath => fs.readdirSync(dirPath, {
-      withFileTypes: true
-    }).filter(entry => entry.isDirectory()).map(entry => ({
-      modName: entry.name.replace(/^DISABLED_/i, ""),
-      modDir: path.join(dirPath, entry.name)
-    }))).filter(entry => modsNevernessPaks.isNevernessDx12ModDir(entry.modDir));
-  }
   const charPath = charactersDirectories.resolveCharacterPath(characterName, gameId2);
   if (!charPath || !fs.existsSync(charPath)) return [];
   return fs.readdirSync(charPath, {

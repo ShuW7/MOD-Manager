@@ -104,7 +104,7 @@ function normalizeArchivePost(value, directory, source) {
     user: ref.id,
     service: ref.service,
     creator,
-    title: String(value.title || i18n.t("backend.gamebanana.untitled")).slice(0, 1000),
+    title: String(value.title || i18n.t("backend.pawchive.untitled")).slice(0, 1000),
     content: String(value.content || value.substring || '').slice(0, 200000),
     published: timestamp(value.published),
     edited: timestamp(value.edited),

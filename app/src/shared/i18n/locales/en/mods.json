@@ -11,7 +11,9 @@
   "presets": {
     "create": "Create preset",
     "delete": "Delete preset",
-    "empty": "No presets yet"
+    "empty": "No presets yet",
+    "applyPartial": "Partially applied: {{enabled}} enabled, {{disabled}} disabled, {{failed}} failed ({{error}})",
+    "applyFailed": "Could not apply the preset: {{error}}"
   },
   "conflicts": {
     "confirmToast": "Mod conflict. Please confirm.",
@@ -29,7 +31,15 @@
     "filterLabel": "Filter Mods by state",
     "filterAll": "All",
     "filterEnabled": "Enabled",
-    "filterDisabled": "Disabled"
+    "filterDisabled": "Disabled",
+    "orderSaveFailed": "Could not save the Mod order: {{error}}",
+    "selectMode": "Select",
+    "selectModeHint": "Batch enable, disable or delete Mods",
+    "exitSelectMode": "Exit selection",
+    "exclusiveDisableFailed": "The target Mod is enabled, but {{count}} previous Mods could not be disabled"
+  },
+  "delete": {
+    "selectedFailed": "{{count}} Mods could not be deleted: {{error}}"
   },
   "types": {
     "base": "Original",

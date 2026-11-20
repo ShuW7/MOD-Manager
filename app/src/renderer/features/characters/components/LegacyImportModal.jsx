@@ -2,8 +2,17 @@ import { t } from "../../../../shared/i18n/index.mjs";
 import React from "react";
 import ReactDOM from "react-dom";
 import { Icon } from "../../../components/Icon.jsx";
+import { useDialogLayer } from "../../../components/Modal.jsx";
 function LegacyImportModal({ preview, migrating, onClose, onMigrate }) {
-  if (!preview?.hasCandidates) return null;
+  const cardRef = React.useRef(null);
+  const open = !!preview?.hasCandidates;
+  useDialogLayer({
+    open,
+    onClose,
+    closeDisabled: migrating,
+    containerRef: cardRef,
+  });
+  if (!open) return null;
   const targetPreview = preview.targetCharacters.slice(0, 8);
   const movePreview = preview.previewMoves.slice(0, 6);
   return ReactDOM.createPortal(
@@ -12,6 +21,7 @@ function LegacyImportModal({ preview, migrating, onClose, onMigrate }) {
       onClick={() => !migrating && onClose?.()}
     >
       <div
+        ref={cardRef}
         className="modal-content legacy-import-card"
         role="dialog"
         aria-modal="true"
@@ -66,11 +76,17 @@ function LegacyImportModal({ preview, migrating, onClose, onMigrate }) {
                     <span className="legacy-import-mod" title={item.modName}>
                       {item.modName}
                     </span>
-                    <span className="legacy-import-source" title={item.sourceCategoryName}>
+                    <span
+                      className="legacy-import-source"
+                      title={item.sourceCategoryName}
+                    >
                       {item.sourceCategoryName}
                     </span>
                     <Icon name="arrow-right" size={13} />
-                    <span className="legacy-import-target" title={item.targetDisplayName}>
+                    <span
+                      className="legacy-import-target"
+                      title={item.targetDisplayName}
+                    >
                       {item.targetDisplayName}
                     </span>
                   </div>
@@ -78,10 +94,17 @@ function LegacyImportModal({ preview, migrating, onClose, onMigrate }) {
               </div>
             </div>
           )}
-          <p className="legacy-import-note">{t("characters.organization.moveRules")}</p>
+          <p className="legacy-import-note">
+            {t("characters.organization.moveRules")}
+          </p>
         </div>
         <div className="dialog-actions">
-          <button type="button" className="btn" onClick={onClose} disabled={migrating}>
+          <button
+            type="button"
+            className="btn"
+            onClick={onClose}
+            disabled={migrating}
+          >
             {t("common.actions.skipForNow")}
           </button>
           <button

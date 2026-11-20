@@ -26,7 +26,6 @@ export function useCharacterImport({
   searchableCharacterIndex,
   setToast,
   activeGame,
-  refreshNevernessDx12Status,
   fetchCharacters,
 }) {
   const [batchImport, setBatchImport] = React.useState(null);
@@ -333,84 +332,101 @@ export function useCharacterImport({
         ),
       }));
     });
-    const result = await window.api.batchDecryptAll({
-      items: selected,
-    });
-    if (cleanup) cleanup();
-    const preferredCharacter =
-      batchImport.preferredCharacter &&
-      characters.some((char) => char.name === batchImport.preferredCharacter)
-        ? batchImport.preferredCharacter
-        : "";
-    const classifyItems = (result.results || []).map((r, i) => {
-      const candidateName = stripDisabledPrefix(
-        r.realName || selected[i]?.name || "Mod",
-      );
-      const installContentType = normalizeInstallContentType(
-        r.installContentType || selected[i]?.installContentType,
-      );
-      const managedInstall = isManagedInstallContentType(installContentType);
-      const forcedIntegrated = !!(
-        selected[i]?.forceIntegratedPackage ||
-        selected[i]?.expectedIntegratedPackage
-      );
-      const integratedPackageCandidate =
-        !managedInstall && !!(r.integratedPackageCandidate || forcedIntegrated);
-      const installAsIntegratedPackage =
-        !managedInstall &&
-        (forcedIntegrated ||
-          (integratedPackageCandidate && !r.integratedPackageAmbiguous));
-      const multiModCandidate = !!r.multiModCandidate;
-      const matchedCharacter = managedInstall
-        ? ""
-        : preferredCharacter || autoMatchCharacter(candidateName, characters);
-      return {
-        filePath: r.originalPath,
-        tempPath: r.tempPath,
-        path: r.originalPath,
-        name: selected[i]?.name || r.realName,
-        type: selected[i]?.type,
-        importMode: selected[i]?.importMode || "",
-        importDisplayPath: getBatchImportDisplayPath(selected[i]),
-        realName: r.realName,
-        modName: managedInstall
-          ? getInstallContentTypeLabel(installContentType)
-          : installAsIntegratedPackage
-            ? t("characters.import.integratedPackage")
-            : candidateName,
-        singleModName: candidateName,
-        targetCharacter: matchedCharacter || "UI",
-        charQuery: matchedCharacter === "其他" ? "" : matchedCharacter || "UI",
-        selected: r.success,
-        decryptSuccess: r.success,
-        decryptError: r.error || null,
-        installContentType,
-        targetGameId:
-          r.targetGameId || selected[i]?.targetGameId || activeGame?.id,
-        importerName: r.importerName || selected[i]?.importerName || "",
-        managedTargetPath:
-          r.managedTargetPath || selected[i]?.managedTargetPath || "",
-        managedTargetLabel:
-          r.managedTargetLabel || selected[i]?.managedTargetLabel || "",
-        managedTargetError:
-          r.managedTargetError || selected[i]?.managedTargetError || "",
-        integratedPackageCandidate,
-        integratedPackageAmbiguous: !!r.integratedPackageAmbiguous,
-        installAsIntegratedPackage,
-        integratedPackageTotalItems: r.integratedPackageTotalItems || 0,
-        integratedPackageModCount: r.integratedPackageModCount || 0,
-        integratedPackageCharacterCount: r.integratedPackageCharacterCount || 0,
-        multiModCandidate,
-        installAsMultipleMods: false,
-        multiModCount: r.multiModCount || 0,
-        multiModNames: r.multiModNames || [],
-      };
-    });
-    setBatchImport((prev) => ({
-      ...prev,
-      phase: "classify",
-      classifyItems,
-    }));
+    try {
+      const result = await window.api.batchDecryptAll({
+        items: selected,
+      });
+      const preferredCharacter =
+        batchImport.preferredCharacter &&
+        characters.some((char) => char.name === batchImport.preferredCharacter)
+          ? batchImport.preferredCharacter
+          : "";
+      const classifyItems = (result.results || []).map((r, i) => {
+        const candidateName = stripDisabledPrefix(
+          r.realName || selected[i]?.name || "Mod",
+        );
+        const installContentType = normalizeInstallContentType(
+          r.installContentType || selected[i]?.installContentType,
+        );
+        const managedInstall = isManagedInstallContentType(installContentType);
+        const forcedIntegrated = !!(
+          selected[i]?.forceIntegratedPackage ||
+          selected[i]?.expectedIntegratedPackage
+        );
+        const integratedPackageCandidate =
+          !managedInstall &&
+          !!(r.integratedPackageCandidate || forcedIntegrated);
+        const installAsIntegratedPackage =
+          !managedInstall &&
+          (forcedIntegrated ||
+            (integratedPackageCandidate && !r.integratedPackageAmbiguous));
+        const multiModCandidate = !!r.multiModCandidate;
+        const matchedCharacter = managedInstall
+          ? ""
+          : preferredCharacter || autoMatchCharacter(candidateName, characters);
+        return {
+          filePath: r.originalPath,
+          tempPath: r.tempPath,
+          path: r.originalPath,
+          name: selected[i]?.name || r.realName,
+          type: selected[i]?.type,
+          importMode: selected[i]?.importMode || "",
+          importDisplayPath: getBatchImportDisplayPath(selected[i]),
+          realName: r.realName,
+          modName: managedInstall
+            ? getInstallContentTypeLabel(installContentType)
+            : installAsIntegratedPackage
+              ? t("characters.import.integratedPackage")
+              : candidateName,
+          singleModName: candidateName,
+          targetCharacter: matchedCharacter || "UI",
+          charQuery:
+            matchedCharacter === "其他" ? "" : matchedCharacter || "UI",
+          selected: r.success,
+          decryptSuccess: r.success,
+          decryptError: r.error || null,
+          installContentType,
+          targetGameId:
+            r.targetGameId || selected[i]?.targetGameId || activeGame?.id,
+          importerName: r.importerName || selected[i]?.importerName || "",
+          managedTargetPath:
+            r.managedTargetPath || selected[i]?.managedTargetPath || "",
+          managedTargetLabel:
+            r.managedTargetLabel || selected[i]?.managedTargetLabel || "",
+          managedTargetError:
+            r.managedTargetError || selected[i]?.managedTargetError || "",
+          integratedPackageCandidate,
+          integratedPackageAmbiguous: !!r.integratedPackageAmbiguous,
+          installAsIntegratedPackage,
+          integratedPackageTotalItems: r.integratedPackageTotalItems || 0,
+          integratedPackageModCount: r.integratedPackageModCount || 0,
+          integratedPackageCharacterCount:
+            r.integratedPackageCharacterCount || 0,
+          multiModCandidate,
+          installAsMultipleMods: false,
+          multiModCount: r.multiModCount || 0,
+          multiModNames: r.multiModNames || [],
+        };
+      });
+      setBatchImport((prev) => ({
+        ...prev,
+        phase: "classify",
+        classifyItems,
+      }));
+    } catch (error) {
+      setBatchImport((prev) => ({
+        ...prev,
+        phase: "scan",
+      }));
+      setToast({
+        type: "error",
+        message: t("characters.import.decryptFailed", {
+          error: error?.message || String(error),
+        }),
+      });
+    } finally {
+      if (cleanup) cleanup();
+    }
   }
   async function handleStartBatchImport() {
     const { classifyItems } = batchImport;
@@ -460,98 +476,104 @@ export function useCharacterImport({
         currentMod: data.modName,
       }));
     });
-    const combinedResults = [];
-    for (let index = 0; index < managedItems.length; index += 1) {
-      const item = managedItems[index];
+    try {
+      const combinedResults = [];
+      for (let index = 0; index < managedItems.length; index += 1) {
+        const item = managedItems[index];
+        setBatchImport((prev) => ({
+          ...prev,
+          progress: index,
+          currentMod: getInstallContentTypeLabel(item.installContentType),
+        }));
+        const managedResult = await window.api.managedPackageInstall({
+          sourcePath: item.filePath || item.path,
+          installContentType: item.installContentType,
+          gameId: item.targetGameId || activeGame?.id,
+          importerName: item.importerName || "",
+        });
+        combinedResults.push({
+          ...managedResult,
+          modName:
+            managedResult?.modName ||
+            getInstallContentTypeLabel(item.installContentType),
+        });
+        setBatchImport((prev) => ({
+          ...prev,
+          progress: index + 1,
+        }));
+      }
+      let modResult = {
+        results: [],
+      };
+      if (modItems.length)
+        modResult = await window.api.batchAddMods({
+          items: modItems.map((i) => ({
+            filePath: i.filePath || i.path,
+            tempPath: i.tempPath || null,
+            characterName: i.installAsIntegratedPackage
+              ? "__all__"
+              : i.targetCharacter || "UI",
+            modName: i.installAsIntegratedPackage
+              ? t("characters.import.integratedPackage")
+              : i.modName,
+            expectedIntegratedPackage: !!i.installAsIntegratedPackage,
+            installAsIntegratedPackage: !!i.installAsIntegratedPackage,
+            installAsMultipleMods: !!i.installAsMultipleMods,
+            integratedPackageTotalItems: i.integratedPackageTotalItems || 0,
+            integratedPackageModCount: i.integratedPackageModCount || 0,
+            integratedPackageCharacterCount:
+              i.integratedPackageCharacterCount || 0,
+            multiModCount: i.multiModCount || 0,
+            multiModNames: i.multiModNames || [],
+          })),
+        });
+      const result = {
+        results: [...combinedResults, ...(modResult.results || [])],
+      };
       setBatchImport((prev) => ({
         ...prev,
-        progress: index,
-        currentMod: getInstallContentTypeLabel(item.installContentType),
+        phase: "done",
+        results: result.results || [],
       }));
-      const managedResult = await window.api.managedPackageInstall({
-        sourcePath: item.filePath || item.path,
-        installContentType: item.installContentType,
-        gameId: item.targetGameId || activeGame?.id,
-        importerName: item.importerName || "",
-      });
-      combinedResults.push({
-        ...managedResult,
-        modName:
-          managedResult?.modName ||
-          getInstallContentTypeLabel(item.installContentType),
-      });
-      setBatchImport((prev) => ({
-        ...prev,
-        progress: index + 1,
-      }));
-    }
-    let modResult = {
-      results: [],
-    };
-    if (modItems.length)
-      modResult = await window.api.batchAddMods({
-        items: modItems.map((i) => ({
-          filePath: i.filePath || i.path,
-          tempPath: i.tempPath || null,
-          characterName: i.installAsIntegratedPackage
-            ? "__all__"
-            : i.targetCharacter || "UI",
-          modName: i.installAsIntegratedPackage
-            ? t("characters.import.integratedPackage")
-            : i.modName,
-          expectedIntegratedPackage: !!i.installAsIntegratedPackage,
-          installAsIntegratedPackage: !!i.installAsIntegratedPackage,
-          installAsMultipleMods: !!i.installAsMultipleMods,
-          integratedPackageTotalItems: i.integratedPackageTotalItems || 0,
-          integratedPackageModCount: i.integratedPackageModCount || 0,
-          integratedPackageCharacterCount:
-            i.integratedPackageCharacterCount || 0,
-          multiModCount: i.multiModCount || 0,
-          multiModNames: i.multiModNames || [],
-        })),
-      });
-    if (cleanup) cleanup();
-    const result = {
-      results: [...combinedResults, ...(modResult.results || [])],
-    };
-    setBatchImport((prev) => ({
-      ...prev,
-      phase: "done",
-      results: result.results || [],
-    }));
-    const importedPak = (result.results || []).some(
-      (item) => item.success && item.modMode === "pak",
-    );
-    const importedIntegrated = (result.results || []).some(
-      (item) => item.success && item.integratedPackage,
-    );
-    const integratedStats = (result.results || []).find(
-      (item) => item.success && item.integratedPackage,
-    );
-    if (importedPak) {
-      const status = await refreshNevernessDx12Status();
-      if (status?.success)
+      const importedIntegrated = (result.results || []).some(
+        (item) => item.success && item.integratedPackage,
+      );
+      const integratedStats = (result.results || []).find(
+        (item) => item.success && item.integratedPackage,
+      );
+      if (importedIntegrated) {
         setToast({
           type: "success",
-          message: t("characters.mode.detectedPak"),
+          message: t("characters.import.integratedInstalled", {
+            characterCount: integratedStats?.characterCount || 0,
+            modCount: integratedStats?.modCount || 0,
+          }),
         });
-    } else if (importedIntegrated) {
+      } else if (combinedResults.length === 1) {
+        setToast({
+          type: combinedResults[0].success ? "success" : "error",
+          message: getManagedInstallResultMessage(combinedResults[0]),
+        });
+      }
+      await fetchCharacters({
+        keepVisible: true,
+      });
+    } catch (error) {
+      setBatchImport((prev) => ({
+        ...prev,
+        phase: "classify",
+        progress: 0,
+        currentMod: "",
+      }));
       setToast({
-        type: "success",
-        message: t("characters.import.integratedInstalled", {
-          characterCount: integratedStats?.characterCount || 0,
-          modCount: integratedStats?.modCount || 0,
+        type: "error",
+        message: t("characters.import.installFailed", {
+          error: error?.message || String(error),
         }),
       });
-    } else if (combinedResults.length === 1) {
-      setToast({
-        type: combinedResults[0].success ? "success" : "error",
-        message: getManagedInstallResultMessage(combinedResults[0]),
-      });
+    } finally {
+      if (cleanup) cleanup();
     }
-    await fetchCharacters({
-      keepVisible: true,
-    });
   }
   return {
     batchImport,

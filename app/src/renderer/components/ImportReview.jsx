@@ -1,6 +1,7 @@
 import { t } from "../../shared/i18n/index.mjs";
 import React from "react";
 import { Icon } from "./Icon.jsx";
+import { useDialogLayer } from "./Modal.jsx";
 import {
   isBatchFolderPlanItem,
   getBatchImportDisplayPath,
@@ -27,7 +28,6 @@ const STEP_BY_PHASE = {
 // Scan types that do not fit the type column.
 const SHORT_TYPES = {
   "integrated-package": "pkg",
-  "pak-folder": "pak",
   "folder-plan": "folder",
 };
 
@@ -38,13 +38,13 @@ export function isImportBusy(phase) {
 export function ImportFrame({ title, phase, onClose, className = "", children }) {
   const busy = isImportBusy(phase);
   const current = STEP_BY_PHASE[phase] ?? 0;
-  React.useEffect(() => {
-    function onKeyDown(event) {
-      if (event.key === "Escape" && !event.defaultPrevented && !busy) onClose();
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [busy, onClose]);
+  const cardRef = React.useRef(null);
+  useDialogLayer({
+    open: true,
+    onClose,
+    closeDisabled: busy,
+    containerRef: cardRef,
+  });
   return (
     <div
       className="batch-import-overlay"
@@ -53,6 +53,7 @@ export function ImportFrame({ title, phase, onClose, className = "", children })
       }}
     >
       <div
+        ref={cardRef}
         className={`batch-import-card ${className}`.trim()}
         role="dialog"
         aria-modal="true"

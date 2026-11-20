@@ -1,8 +1,9 @@
 "use strict";
 
 const i18n = require("../../shared/i18n/core.cjs");
-// Kept for persisted-data migration code that still recognises old profiles.
-const WUWA_FIX_GAME_ID = "wuthering-waves";
+// The manager is single-game by product scope. Keeping the definition table
+// (rather than inline literals) means a future game can be added by extending
+// this list without touching the IPC or renderer layers.
 const BUILTIN_GAMES = [{
   id: "arknights",
   name: "明日方舟",
@@ -17,7 +18,6 @@ const BUILTIN_GAMES = [{
 }];
 const BUILTIN_GAME_MAP = new Map(BUILTIN_GAMES.map(game => [game.id, game]));
 module.exports = {
-  WUWA_FIX_GAME_ID,
   BUILTIN_GAMES,
   BUILTIN_GAME_MAP
 };

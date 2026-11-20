@@ -20,6 +20,27 @@ const PAUSABLE_STATUSES = ["downloading", "paused"];
 const CANCELABLE_STATUSES = ["queued", "checking", "downloading", "paused"];
 const SLOW_SPEED_BPS = 200 * 1024;
 const SLOW_DOWNLOAD_DELAY_MS = 10 * 1e3;
+const IMPORTED_TASKS_STORAGE_KEY = "qaqm-imported-download-tasks";
+function readImportedTaskIds() {
+  try {
+    const parsed = JSON.parse(
+      localStorage.getItem(IMPORTED_TASKS_STORAGE_KEY) || "{}",
+    );
+    return new Set(Object.keys(parsed || {}));
+  } catch {
+    return new Set();
+  }
+}
+function writeImportedTaskIds(ids) {
+  try {
+    localStorage.setItem(
+      IMPORTED_TASKS_STORAGE_KEY,
+      JSON.stringify(
+        Object.fromEntries([...ids].map((id) => [id, Date.now()])),
+      ),
+    );
+  } catch {}
+}
 function formatTaskError(message, code = "") {
   const raw = String(message || "").trim();
   if (!raw) return "";
@@ -119,6 +140,8 @@ function taskStatus(task, percent) {
 // The download manager: a popover under the top bar button, fed by download events.
 function FloatingDownloadOrb({ onImportTask }) {
   const [tasks, setTasks] = React.useState([]);
+  const [importedTaskIds, setImportedTaskIds] =
+    React.useState(readImportedTaskIds);
   const [panelOpen, setPanelOpen] = React.useState(false);
   const [panelAnchor, setPanelAnchor] = React.useState({
     right: WINDOW_MARGIN,
@@ -258,6 +281,14 @@ function FloatingDownloadOrb({ onImportTask }) {
     );
     try {
       await onImportTask(task);
+      setImportedTaskIds((previous) => {
+        const taskKey = String(task.taskId);
+        if (previous.has(taskKey)) return previous;
+        const next = new Set(previous);
+        next.add(taskKey);
+        writeImportedTaskIds(next);
+        return next;
+      });
       panelDismissedRef.current = true;
       setPanelOpen(false);
     } catch (error) {
@@ -649,6 +680,7 @@ function FloatingDownloadOrb({ onImportTask }) {
         },
       }),
     );
+    panelDismissedRef.current = true;
     setPanelOpen(false);
   }, []);
   const handleOpenNetdisk = React.useCallback((link) => {
@@ -736,7 +768,7 @@ function FloatingDownloadOrb({ onImportTask }) {
               (isStoredDownload(task) &&
                 ["completed", "paused", "canceled"].includes(task.status)));
           const canRetryDownload =
-            (task.status === "error" ||
+            ((task.status === "error" && task.code !== "INSTALL_FAILED") ||
               (isStoredDownload(task) && task.status === "canceled")) &&
             task.retryPayload;
           const canImport =
@@ -744,6 +776,8 @@ function FloatingDownloadOrb({ onImportTask }) {
             task.status === "completed" &&
             task.archivePath &&
             (task.provider !== "archive" || task.canImport);
+          const isImported =
+            task.taskId != null && importedTaskIds.has(String(task.taskId));
           const networkTip =
             task.provider !== "mega" && shouldShowNetworkTip(task);
           const networkFailure =
@@ -938,6 +972,11 @@ function FloatingDownloadOrb({ onImportTask }) {
                       {t("downloads.actions.openManager")}
                     </button>
                   )}
+                  {canImport && isImported && (
+                    <span className="badge badge-success">
+                      {t("downloads.status.imported")}
+                    </span>
+                  )}
                   {canImport && (
                     <button
                       type="button"
@@ -948,7 +987,9 @@ function FloatingDownloadOrb({ onImportTask }) {
                     >
                       {importingTaskId === task.taskId
                         ? t("downloads.status.preparingImport")
-                        : t("characters.import.title")}
+                        : isImported
+                          ? t("downloads.actions.reimport")
+                          : t("characters.import.title")}
                     </button>
                   )}
                 </div>

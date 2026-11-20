@@ -13,16 +13,15 @@ const charactersSkins = require("../characters/skins.cjs");
 const configStore = require("../config/store.cjs");
 const coreLogger = require("../core/logger.cjs");
 const desktopNotifications = require("../desktop/notifications.cjs");
+const developerMarked = require("../developer/marked.cjs");
 const developerMarkedMove = require("../developer/marked-move.cjs");
 const gamesEnvironment = require("../games/environment.cjs");
-const gamesNevernessLoader = require("../games/neverness/loader.cjs");
 const gamesSettings = require("../games/settings.cjs");
 const modsAppearance = require("../mods/appearance.cjs");
 const modsConflicts = require("../mods/conflicts.cjs");
 const modsHotkeys = require("../mods/hotkeys.cjs");
 const modsIniFiles = require("../mods/ini-files.cjs");
 const modsMetadata = require("../mods/metadata.cjs");
-const modsNevernessPaks = require("../games/neverness/paks.cjs");
 const overlayWindow = require("../overlay/window.cjs");
 const persistService = require("../persist/service.cjs");
 const persistTracking = require("../persist/tracking.cjs");
@@ -31,9 +30,6 @@ const systemPaths = require("../system/paths.cjs");
 async function listMods(characterName) {
     try {
       const gameId2 = gamesSettings.getActiveGameScopeId();
-      if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-        return modsNevernessPaks.getNevernessDx12Mods(characterName);
-      }
       charactersOrganization.organizeLegacyCharacterFoldersIfNeeded(gameId2);
       const charPath = charactersDirectories.resolveCharacterPath(characterName, gameId2);
       if (!charPath || !fs.existsSync(charPath)) {
@@ -152,9 +148,6 @@ async function applyModToggle({ characterName, modName, enable, gameId, autoRelo
       modName = charactersSkins.assertSafeAppearancePathSegment(modName, i18n.t("backend.validation.modName"));
       if (enable) charactersHidden.assertCharacterVisible(characterName, gameId2);
       if (gameId2 === "arknights") return require("../games/arknights/service.cjs").toggleMod({ characterName, modName, enable, autoReload, confirmedConflictIds });
-      if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-        return modsNevernessPaks.toggleNevernessDx12PakMod(characterName, modName, enable);
-      }
       charactersOrganization.organizeLegacyCharacterFoldersIfNeeded(gameId2);
       const env = gamesEnvironment.resolveActiveGameEnvRoot(gameId2);
       const charPath = charactersDirectories.resolveCharacterPath(characterName, gameId2);
@@ -374,32 +367,6 @@ function registerIpc() {
   }) => {
     try {
       const gameId2 = gamesSettings.getActiveGameScopeId();
-      if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-        const paths = gamesNevernessLoader.getNevernessDx12Paths();
-        const charPath2 = modsNevernessPaks.getNevernessDx12CharacterPath(characterName, {
-          ensure: true
-        }) || charactersDirectories.resolveCharacterPath(characterName, gameId2);
-        if (!charPath2) return {
-          error: i18n.t("backend.imports.local.characterFolderNotFound")
-        };
-        const disabledCharPath = modsNevernessPaks.getNevernessDx12DisabledCharacterPath(characterName, paths);
-        const candidates = [path.join(charPath2, modName), path.join(charPath2, `DISABLED_${modName}`), disabledCharPath ? path.join(disabledCharPath, modName) : "", disabledCharPath ? path.join(disabledCharPath, `DISABLED_${modName}`) : ""].filter(Boolean);
-        const modPath2 = candidates.find(candidate => fs.existsSync(candidate));
-        let imagePath2 = null;
-        if (modPath2 && fs.existsSync(modPath2)) {
-          imagePath2 = charactersImages.findModPreviewImageFile(modPath2);
-        }
-        let previewUrl2 = null;
-        if (imagePath2 && fs.existsSync(imagePath2)) {
-          previewUrl2 = charactersImages.getLocalImageUrl(imagePath2);
-        }
-        return {
-          success: true,
-          previewUrl: previewUrl2,
-          hotkeys: [],
-          hotkeyGroups: []
-        };
-      }
       charactersOrganization.organizeLegacyCharacterFoldersIfNeeded(gameId2);
       let actualModName = modName;
       const charPath = charactersDirectories.resolveCharacterPath(characterName, gameId2);
@@ -528,9 +495,7 @@ function registerIpc() {
       const gameId2 = gamesSettings.getActiveGameScopeId();
       charactersOrganization.organizeLegacyCharacterFoldersIfNeeded(gameId2);
       let actualModName = modName;
-      const charPath = gamesNevernessLoader.isNevernessDx12Mode(gameId2) ? modsNevernessPaks.getNevernessDx12CharacterPath(characterName, {
-        ensure: true
-      }) : charactersDirectories.resolveCharacterPath(characterName, gameId2);
+      const charPath = charactersDirectories.resolveCharacterPath(characterName, gameId2);
       if (!charPath) {
         return {
           error: i18n.t("backend.imports.local.characterFolderNotFound")
@@ -621,9 +586,7 @@ function registerIpc() {
       const ext = extMap[mime] || ".png";
       const gameId2 = gamesSettings.getActiveGameScopeId();
       charactersOrganization.organizeLegacyCharacterFoldersIfNeeded(gameId2);
-      const charPath = gamesNevernessLoader.isNevernessDx12Mode(gameId2) ? modsNevernessPaks.getNevernessDx12CharacterPath(characterName, {
-        ensure: true
-      }) : charactersDirectories.resolveCharacterPath(characterName, gameId2);
+      const charPath = charactersDirectories.resolveCharacterPath(characterName, gameId2);
       if (!charPath) return {
         error: i18n.t("backend.imports.local.characterFolderNotFound")
       };
@@ -699,6 +662,24 @@ function registerIpc() {
       if (currentPinned.includes(oldName)) {
         modsMetadata.setPinnedModsForCharacter(characterName, currentPinned.map(name => name === oldName ? newName : name));
       }
+      // Keep the developer mark attached to the renamed folder; otherwise the
+      // bookmark silently disappears while its stale count remains.
+      try {
+        if (developerMarked.isModMarked(gameId2, characterName, oldName)) {
+          developerMarked.deleteMarkedModFromConfig(gameId2, characterName, oldName);
+          developerMarked.setMarkedModForConfig(gameId2, characterName, newName, {
+            name: newName,
+            characterName,
+            gameId: gameId2,
+            path: newPath,
+            originalPath: newPath,
+            markedAt: new Date().toISOString()
+          });
+          desktopNotifications.notifyMarkedModsChanged(gameId2, characterName);
+        }
+      } catch (markError) {
+        coreLogger.warn?.("Failed to migrate marked Mod after rename", markError);
+      }
       modsConflicts.clearConflictCache(characterName, gameId2);
       desktopNotifications.notifyCharacterListChanged(characterName, {
         modName: newName,
@@ -748,15 +729,6 @@ function registerIpc() {
         };
       }
       let targetCharPath = targetContext.characterPath;
-      if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-        targetCharPath = source.enabled ? modsNevernessPaks.getNevernessDx12CharacterPath(targetName, {
-          ensure: true,
-          gameId: gameId2
-        }) : modsNevernessPaks.getNevernessDx12DisabledCharacterPath(targetName, gamesNevernessLoader.getNevernessDx12Paths(gameId2), {
-          ensure: true,
-          gameId: gameId2
-        });
-      }
       if (!targetCharPath) return {
         error: i18n.t("backend.ipc.mods.targetCategoryMissing")
       };
@@ -837,9 +809,6 @@ function registerIpc() {
       const gameId2 = gamesSettings.getActiveGameScopeId();
       characterName = charactersSkins.assertSafeAppearancePathSegment(characterName, i18n.t("backend.validation.characterName"));
       modName = charactersSkins.assertSafeAppearancePathSegment(modName, i18n.t("backend.validation.modName"));
-      if (gamesNevernessLoader.isNevernessDx12Mode(gameId2)) {
-        return await modsNevernessPaks.deleteNevernessDx12PakMod(characterName, modName);
-      }
       charactersOrganization.organizeLegacyCharacterFoldersIfNeeded(gameId2);
       const env = gamesEnvironment.resolveActiveGameEnvRoot(gameId2);
       const charPath = charactersDirectories.resolveCharacterPath(characterName, gameId2);
@@ -872,6 +841,14 @@ function registerIpc() {
       const currentPinned = modsMetadata.getPinnedModsForCharacter(characterName);
       if (currentPinned.includes(modName)) {
         modsMetadata.setPinnedModsForCharacter(characterName, currentPinned.filter(name => name !== modName));
+      }
+      try {
+        if (developerMarked.isModMarked(gameId2, characterName, modName)) {
+          developerMarked.deleteMarkedModFromConfig(gameId2, characterName, modName);
+          desktopNotifications.notifyMarkedModsChanged(gameId2, characterName);
+        }
+      } catch (markError) {
+        coreLogger.warn?.("Failed to clear marked Mod after delete", markError);
       }
       modsConflicts.clearConflictCache(characterName, gameId2);
       desktopNotifications.notifyCharacterListChanged(characterName, {
