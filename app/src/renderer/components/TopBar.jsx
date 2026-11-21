@@ -1,5 +1,6 @@
 import { t } from "../../shared/i18n/index.mjs";
 import React from "react";
+import appIcon from "../../../resources/icon.png";
 import { DownloadManagerButton } from "./DownloadManagerButton.jsx";
 import { LaunchControls } from "./LaunchControls.jsx";
 import { WindowControls } from "./WindowControls.jsx";
@@ -67,9 +68,11 @@ const TopBar = React.memo(function TopBar({
             type="button"
             className="sidebar-logo"
             onClick={onHome}
+            aria-label="QAQ-Revival"
             title={t("navigation.charactersOverview")}
           >
-            QAQR
+            <img className="sidebar-logo-icon" src={appIcon} alt="" />
+            <span className="sidebar-wordmark">QAQR</span>
           </button>
           <button
             type="button"

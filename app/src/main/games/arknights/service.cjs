@@ -13,6 +13,7 @@ const directories = require("../../characters/directories.cjs");
 const hidden = require("../../characters/hidden.cjs");
 const sourceComponent = require("./component.cjs");
 const abMod = require("./ab-mod.cjs");
+const abPath = require("./ab-path.cjs");
 const textConfig = require("./text-config.cjs");
 const dumpSettings = require("./dump-settings.cjs");
 const storage = require("./storage.cjs");
@@ -351,21 +352,9 @@ async function setAbPath({ characterName, modName }) {
   if (!gamePath || !fs.existsSync(gamePath)) throw Error(i18n.t("arknights.errors.gameMissing"));
   const source = resolveMod(characterName, modName);
   files.assertNoLinks(source);
-  const current = abMod.readConfig(source);
-  const bundles = abMod.abFiles(source, current || { bundleRoot: "", auto: true });
-  if (!bundles.length) throw Error(i18n.t("arknights.errors.abNoBundles"));
-  const root = path.join(path.dirname(gamePath), "Arknights_Data", "StreamingAssets", "AB", "Windows");
-  const selection = await electron.dialog.showOpenDialog({
-    title: i18n.t("arknights.abPath"),
-    defaultPath: fs.existsSync(root) ? root : path.dirname(gamePath),
-    properties: ["openFile"],
-    filters: [{ name: "Unity AssetBundle", extensions: ["ab"] }]
-  });
-  if (selection.canceled || !selection.filePaths.length) return { success: true, canceled: true };
-  let derived;
-  try { derived = abMod.deriveConfig(gamePath, selection.filePaths[0], source); }
-  catch { throw Error(i18n.t("arknights.errors.abPathInvalid")); }
-  abMod.writeConfig(source, { keyRoot: derived.keyRoot, bundleRoot: derived.bundleRoot, auto: true, map: {} });
+  const derived = await abPath.selectConfig(gamePath, source, electron.dialog);
+  if (!derived) return { success: true, canceled: true };
+  abMod.writeConfig(source, derived);
   let syncError = "";
   try { sync({ force: true }); }
   catch (error) { syncError = error.message; }

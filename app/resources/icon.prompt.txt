@@ -1,0 +1,11 @@
+Generated with the built-in image_gen tool.
+Application icon source: icon.png
+Windows ICO: regenerate with tools/build-icon.ps1.
+
+Use case: logo-brand.
+Asset type: production Windows desktop application icon for QAQ-Revival, an Arknights MOD manager. Generate one finished square icon, not a presentation or mockup.
+Primary request: a sophisticated, memorable modular letter Q emblem that suggests assembling and activating game asset modules.
+Composition: a single centered dark graphite rounded-square tile occupying about 90 percent of a square canvas, with genuinely transparent pixels outside its rounded corners. Inside, one large bold ivory geometric Q mark occupying about 68 percent of the tile. The Q is an angular, squared ring with chamfered corners and a generously open square counter, assembled from three broad interlocking slab-like segments. Only two clean narrow cuts distinguish the modules. At the lower-right opening, a compact vivid vermilion-red diagonal block forms the unmistakable tail of the Q and suggests an activation tab. Balanced centered silhouette, generous uncluttered negative space. Strong recognition at 16, 24 and 32 pixels.
+Style: premium restrained tactical-industrial identity, crisp vector-like edges, mostly flat graphic design with extremely subtle surface depth only. Graphite black background, warm ivory primary emblem, one vermilion accent. Sharp, confident geometry, meticulous optical balance.
+Text: no words, no captions, no tiny lettering; the Q is the emblem itself.
+Constraints: exactly one icon, front-facing, no perspective mockup, no surrounding scene, no drop shadow beyond the tile, no checkerboard pattern, no watermark, no characters or faces, no gear, no generic cube, no extra decorative lines, no neon glow, no gradients across the emblem. Keep the outer canvas truly transparent. 1024 by 1024 square composition.

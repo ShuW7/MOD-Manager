@@ -131,14 +131,24 @@
   margin-bottom: 28px;
 }
 .sidebar-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
   padding: 0;
   border: 0;
-  background: var(--accent-gradient);
-  background-clip: text;
-  color: transparent;
-  font-size: 29px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 22px;
   font-weight: 850;
   letter-spacing: -1px;
+}
+.sidebar-logo-icon {
+  display: block;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  object-fit: contain;
 }
 .sidebar-toggle {
   width: 28px;
@@ -357,8 +367,8 @@
   flex-direction: column;
   gap: 14px;
 }
-.is-collapsed .sidebar-logo {
-  font-size: 18px;
+.is-collapsed .sidebar-wordmark {
+  display: none;
 }
 .is-collapsed .sidebar-game {
   margin: 0 auto 20px;
@@ -444,8 +454,8 @@
     flex-direction: column;
     gap: 12px;
   }
-  .sidebar-logo {
-    font-size: 18px;
+  .sidebar-wordmark {
+    display: none;
   }
   .sidebar-toggle,
   .sidebar-game-copy,

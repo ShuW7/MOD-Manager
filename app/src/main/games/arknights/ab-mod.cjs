@@ -61,7 +61,7 @@ function insideGame(gamePath, file) {
 }
 
 function abFiles(modDir, config) {
-  const bundleRoot = config.bundleRoot ? path.join(modDir, config.bundleRoot) : modDir;
+  const bundleRoot = path.join(modDir, safeRelative(config.bundleRoot));
   if (!fs.existsSync(bundleRoot) || !fs.statSync(bundleRoot).isDirectory()) return [];
   const result = [];
   const visit = (directory) => {
@@ -102,9 +102,16 @@ function overlaySource(gamePath, relative) {
 
 function bundleTargets(gamePath, modDir, config) {
   const keyRoot = keyRootRelative(gamePath, config.keyRoot);
-  const prefix = config.bundleRoot && config.bundleRoot !== "." ? safeRelative(config.bundleRoot) + "/" : "";
-  return abFiles(modDir, config).map((file) => {
-    const key = prefix && file.relative.startsWith(prefix) ? file.relative.slice(prefix.length) : file.relative;
+  const entries = config.auto ? abFiles(modDir, config).map(file => ({ ...file, key: bundleKey(file, config) }))
+    : Object.entries(config.map || {}).map(([key, value]) => {
+      const relative = safeRelative(value), file = path.join(modDir, relative);
+      const stat = fs.statSync(file);
+      key = safeRelative(key);
+      if (!key.toLowerCase().endsWith(".ab")) key += ".ab";
+      return { path: file, relative, size: stat.size, mtimeMs: stat.mtimeMs, key };
+    });
+  return entries.map((file) => {
+    const { key } = file;
     const relative = keyRoot + "/" + key;
     return { ...file, key, target: relative.replace(/\/+/g, "/"), source: overlaySource(gamePath, relative) };
   });
@@ -123,23 +130,83 @@ function commonBundleRoot(modDir) {
   if (!fs.existsSync(modDir)) return "";
   visit(modDir);
   if (!files.length) return "";
-  const relative = files.map((directory) => path.relative(modDir, directory).split(path.sep).join("/"));
-  if (relative.every((value) => value === relative[0])) return relative[0] === "" ? "." : relative[0];
-  return ".";
+  return path.relative(modDir, commonDirectory(files)).split(path.sep).join("/") || ".";
 }
 
-function deriveConfig(gamePath, selectedFile, modDir) {
-  if (!insideGame(gamePath, selectedFile)) throw Error("outside");
-  if (path.extname(selectedFile).toLowerCase() !== ".ab") throw Error("bundle");
+function commonDirectory(directories) {
+  let common = path.resolve(directories[0]);
+  for (const directory of directories.slice(1)) {
+    while (path.relative(common, directory).split(path.sep)[0] === ".." || path.isAbsolute(path.relative(common, directory))) {
+      const parent = path.dirname(common);
+      if (parent === common) throw Error("outside");
+      common = parent;
+    }
+  }
+  return common;
+}
+
+function deriveConfig(gamePath, selectedPath, modDir) {
+  if (!insideGame(gamePath, selectedPath)) throw Error("outside");
+  const stat = fs.statSync(selectedPath);
+  if (!stat.isDirectory() && (!stat.isFile() || path.extname(selectedPath).toLowerCase() !== ".ab")) throw Error("bundle");
+  const directory = stat.isDirectory() ? selectedPath : path.dirname(selectedPath);
   const games = path.dirname(gameRoot(gamePath));
-  const keyRoot = path.relative(games, path.dirname(path.resolve(selectedFile))).split(path.sep).join("\\");
-  if (!keyRoot || keyRoot.startsWith("..")) throw Error("outside");
+  const keyRoot = path.relative(games, path.resolve(directory)).split(path.sep).join("\\");
+  keyRootRelative(gamePath, keyRoot);
   return { keyRoot, bundleRoot: commonBundleRoot(modDir), auto: true };
+}
+
+function bundleKey(file, config) {
+  const prefix = safeRelative(config.bundleRoot);
+  return prefix ? file.relative.slice(prefix.length + 1) : file.relative;
+}
+
+function matchBundles(gamePath, modDir, config) {
+  const directory = path.join(gameRoot(gamePath), keyRootRelative(gamePath, config.keyRoot));
+  const targets = abFiles(directory, { bundleRoot: "" });
+  const byPath = new Map(), byName = new Map();
+  for (const target of targets) {
+    byPath.set(target.relative.toLowerCase(), target.path);
+    const name = path.basename(target.path).toLowerCase();
+    if (!byName.has(name)) byName.set(name, []);
+    byName.get(name).push(target.path);
+  }
+  const entries = abFiles(modDir, config).map(file => {
+    const key = bundleKey(file, config);
+    const exact = byPath.get(key.toLowerCase());
+    const candidates = exact ? [exact] : byName.get(path.basename(file.path).toLowerCase()) || [];
+    return { ...file, key, target: candidates.length === 1 ? candidates[0] : null, ambiguous: candidates.length > 1 };
+  });
+  // Never silently let two Mod files overwrite the same game bundle.
+  const counts = new Map();
+  for (const entry of entries) if (entry.target) counts.set(entry.target, (counts.get(entry.target) || 0) + 1);
+  return entries.map(entry => counts.get(entry.target) > 1 ? { ...entry, target: null, ambiguous: true } : entry);
+}
+
+function mappedConfig(gamePath, config, entries) {
+  const directory = path.join(gameRoot(gamePath), keyRootRelative(gamePath, config.keyRoot));
+  for (const entry of entries) {
+    if (!entry.target || !insideGame(gamePath, entry.target)) throw Error("outside");
+    keyRootRelative(gamePath, path.relative(gameRoot(gamePath), entry.target));
+    if (path.extname(entry.target).toLowerCase() !== ".ab" || !fs.statSync(entry.target).isFile()) throw Error("bundle");
+  }
+  const root = commonDirectory([directory, ...entries.map(entry => path.dirname(entry.target))]);
+  const map = {}, seen = new Set();
+  let auto = true;
+  for (const entry of entries) {
+    const key = path.relative(root, entry.target).split(path.sep).join("/");
+    if (seen.has(key.toLowerCase())) throw Error("duplicate");
+    seen.add(key.toLowerCase());
+    map[key] = entry.relative;
+    if (key.toLowerCase() !== entry.key.toLowerCase()) auto = false;
+  }
+  return { ...config, keyRoot: path.relative(path.dirname(gameRoot(gamePath)), root).split(path.sep).join("\\"), auto, map: auto ? {} : map };
 }
 
 function writeConfig(modDir, { keyRoot, bundleRoot, auto = true, map = {} }) {
   const lines = ["[mod]", "type = assetbundle", "key_root = " + String(keyRoot || "").trim(), "", "bundle_root = " + String(bundleRoot || ".").trim().replace(/\//g, "\\"), "auto_map_by_stem = " + (auto ? "true" : "false")];
   if (!auto) {
+    lines.push("", "[map]");
     for (const [key, value] of Object.entries(map || {})) lines.push(`${key} = ${value}`);
   }
   fs.writeFileSync(path.join(modDir, "mod.ini"), lines.join("\r\n") + "\r\n", "utf8");
@@ -154,4 +221,4 @@ function isAssetBundleFile(file) {
   } catch { return false; }
 }
 
-module.exports = { TYPE, parseIni, readConfig, abFiles, keyRootRelative, overlaySource, bundleTargets, commonBundleRoot, deriveConfig, writeConfig, gameRoot, insideGame, isAssetBundleFile };
+module.exports = { TYPE, parseIni, readConfig, abFiles, keyRootRelative, overlaySource, bundleTargets, commonBundleRoot, deriveConfig, matchBundles, mappedConfig, writeConfig, gameRoot, insideGame, isAssetBundleFile };
