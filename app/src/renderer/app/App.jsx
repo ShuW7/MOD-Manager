@@ -1018,6 +1018,7 @@ function App() {
                 <ModView
                   characterName={selectedCharacter}
                   activeGameId={activeGame?.id}
+                  modLibraryPath={activeGame?.modFolderPath}
                   managerTarget={managerTarget}
                   devMode={devMode}
                   onOpenPublishMod={handleOpenPublishMod}

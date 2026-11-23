@@ -315,6 +315,28 @@ select option {
   cursor: not-allowed;
 }
 
+.toggle-switch-refined[aria-busy="true"] {
+  opacity: 1;
+  cursor: progress;
+}
+
+.toggle-switch-refined[aria-busy="true"]::before {
+  inset: 4px auto auto 4px;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 2px solid var(--switch-off);
+  border-top-color: transparent;
+  border-radius: 50%;
+  z-index: 1;
+  animation: spin 0.7s linear infinite;
+}
+
+.toggle-switch-refined.active[aria-busy="true"]::before,
+.toggle-switch-refined[aria-checked="true"][aria-busy="true"]::before {
+  left: 18px;
+}
+
 /* Segmented control */
 .segmented {
   display: inline-flex;

@@ -147,6 +147,7 @@ export function ModLibraryPanel({
   activeGameId,
   handleMarkMod,
   handleToggle,
+  togglingMod,
   handleSetAbPath,
   handleTextConfig,
   isDragging,
@@ -169,6 +170,9 @@ export function ModLibraryPanel({
   setShowConflictDetail,
   showConflictDetail,
 }) {
+  // Switching includes deployment/reload before the final list read. Keep the
+  // same visible feedback throughout, even if a background read finishes.
+  const isLoading = modsLoading || !!togglingMod;
   const availableTags = collectModTags(mods);
   const pendingMods = mods.filter((mod) => mod.pendingEnabled);
   const enabledTotal = allDisplayMods.filter((mod) => mod.enabled).length;
@@ -242,7 +246,7 @@ export function ModLibraryPanel({
   }
   const filterHasNoMatches =
     appearanceFilterHasNoMatches || stateFilter !== "all";
-  const emptyState = visibleMods.length === 0 && !modsLoading && !modsLoadError && (
+  const emptyState = visibleMods.length === 0 && !isLoading && !modsLoadError && (
     <div className="appearance-section-empty-state empty-state">
       <SectionCover
         section={activeAppearanceSection}
@@ -289,7 +293,7 @@ export function ModLibraryPanel({
   return (
     <div
       className={`${viewMode === "gallery" ? "mod-gallery-panel" : "mod-list-panel"} mod-library-panel`}
-      aria-busy={modsLoading}
+      aria-busy={isLoading}
     >
       <div className="mod-view-titlebar">
         <h1 className="mod-view-title">
@@ -491,13 +495,13 @@ export function ModLibraryPanel({
           <Icon name="zap" size={16} />
         </button>
       </div>
-      {modsLoading && (
+      {isLoading && (
         <div className="appearance-section-loading" role="status">
           <span className="spinner" aria-hidden="true" />
           {t("common.status.loading")}
         </div>
       )}
-      {!modsLoading && modsLoadError && (
+      {!isLoading && modsLoadError && (
         <div className="notice notice-danger appearance-section-load-error" role="alert">
           <Icon name="alert" size={14} />
           <span>
@@ -758,6 +762,8 @@ export function ModLibraryPanel({
                     <button
                       type="button"
                       role="switch"
+                      disabled={!!togglingMod}
+                      aria-busy={togglingMod === mod.name}
                       aria-checked={!!lit}
                       aria-label={`${mod.enabled ? t("common.actions.disable") : t("common.actions.enable")} ${mod.name}`}
                       className={`toggle-switch-refined ${lit ? "active" : ""} ${mod.pendingEnabled ? "pending" : ""} mod-gallery-card-toggle`}
@@ -858,6 +864,8 @@ export function ModLibraryPanel({
                     className={`toggle-switch-refined ${lit ? "active" : ""} ${mod.pendingEnabled ? "pending" : ""} mod-toggle-wrap`}
                     type="button"
                     role="switch"
+                    disabled={!!togglingMod}
+                    aria-busy={togglingMod === mod.name}
                     aria-checked={!!lit}
                     aria-label={`${mod.pendingEnabled ? t("mods.conflicts.cancelPending") : mod.enabled ? t("common.actions.disable") : t("common.actions.enable")} ${mod.name}`}
                     onClick={(e) => handleToggle(mod.name, mod.enabled, e)}

@@ -352,6 +352,30 @@ input:focus-visible,
   outline: 2px solid var(--focus);
 }
 
+.mod-switch:disabled {
+  cursor: progress;
+}
+
+.mod-switch[aria-busy="true"]::before {
+  inset: 4px auto auto 4px;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 2px solid var(--switch-off);
+  border-top-color: transparent;
+  border-radius: 50%;
+  z-index: 1;
+  animation: mod-toggle-spin 0.7s linear infinite;
+}
+
+.mod-switch.active[aria-busy="true"]::before {
+  left: 18px;
+}
+
+@keyframes mod-toggle-spin {
+  to { transform: rotate(360deg); }
+}
+
 .settings-switch-input {
   position: absolute;
   opacity: 0;

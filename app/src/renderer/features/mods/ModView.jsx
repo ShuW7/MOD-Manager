@@ -29,6 +29,7 @@ import { Icon } from "../../components/Icon.jsx";
 import { Modal } from "../../components/Modal.jsx";
 import ReactDOM from "react-dom";
 import { useCoalescedRefresh } from "../../hooks/useCoalescedRefresh.js";
+import { beginModToggle, deferModToggleRefresh, useModToggleProgress } from "./hooks/useModToggleProgress.js";
 import { getModViewStateStorageKey, getModViewPreferenceStorageKey, getAppearanceSectionStorageKey, readModViewState, readModViewPreferences, DEFAULT_PREVIEW_ASPECT_RATIO, getModAppearanceSectionId, getAppearanceImportTargetName, previewAspectRatioCache, aiSuggestionCache, callAppearanceSectionApi } from "./model/modHelpers.js";
 import { BASE_SECTION_ID, getSectionId, getSectionName } from "./model/appearanceSections.js";
 import { buildLocalCollectionView } from "./model/localCollections.js";
@@ -36,6 +37,7 @@ import { collectionSelectionKey, readCollectionSelections } from "../../lib/coll
 function ModView({
   characterName,
   activeGameId,
+  modLibraryPath,
   managerTarget,
   onBack,
   devMode,
@@ -83,6 +85,8 @@ function ModView({
   const [previewImageAspectRatio, setPreviewImageAspectRatio] = React.useState(DEFAULT_PREVIEW_ASPECT_RATIO);
   const [imageKey, setImageKey] = React.useState(Date.now());
   const [toast, setToast] = React.useState(null);
+  const toggleScope = JSON.stringify([activeGameId, modLibraryPath, characterName]);
+  const togglingMod = useModToggleProgress(toggleScope, loadMods, setToast);
   const {
     modSearchQuery,
     setModSearchQuery,
@@ -595,6 +599,7 @@ function ModView({
     });
     const cleanup = window.api.onModsChanged?.(data => {
       if (data.gameId && data.gameId !== activeGameId) return;
+      if (deferModToggleRefresh(toggleScope, characterName, data)) return;
       if (data.characterName === characterName || data.characterName === "__all__") {
         loadMods({
           syncCharacterCache: true,
@@ -605,7 +610,7 @@ function ModView({
     return () => {
       if (cleanup) cleanup();
     };
-  }, [characterName]);
+  }, [characterName, activeGameId, toggleScope]);
   React.useEffect(() => window.api.onHotkeysChanged?.(data => {
     const selected = selectedModRef.current;
     if (data.gameId !== activeGameId || !selected) return;
@@ -928,6 +933,20 @@ function ModView({
   }
   async function handleToggle(modName, currentStatus, e) {
     if (e) e.stopPropagation();
+    // Commit the visible status before invoking the main process, where
+    // deployment and runtime preparation can take several seconds.
+    const operation = ReactDOM.flushSync(() => beginModToggle(toggleScope, modName));
+    if (!operation) return;
+    try {
+      await performToggle(modName, currentStatus, operation);
+    } catch (error) {
+      pendingFocusRef.current = null;
+      operation.showToast({ type: "error", message: t("common.errors.operationWithReason", { error: error.message }) });
+    } finally {
+      await operation.finish();
+    }
+  }
+  async function performToggle(modName, currentStatus, { refresh, showToast }) {
     const newState = !(currentStatus || mods.find(mod => mod.name === modName)?.pendingEnabled);
     pendingFocusRef.current = {
       characterName,
@@ -950,13 +969,13 @@ function ModView({
       const enableResult = await window.api.toggleMod(characterName, modName, true);
       if (enableResult.pending) {
         pendingFocusRef.current = null;
-        setToast({ type: "warning", message: t("mods.conflicts.confirmToast") });
-        await loadMods();
+        showToast({ type: "warning", message: t("mods.conflicts.confirmToast") });
+        await refresh();
         return;
       }
       if (!enableResult.success) {
         pendingFocusRef.current = null;
-        setToast({
+        showToast({
           type: "error",
           message: t("common.errors.operationWithReason", {
             error: enableResult.error
@@ -975,44 +994,38 @@ function ModView({
         }
       }
       recordCharacterUsage(1);
-      await loadMods({
-        syncCharacterCache: true,
-        conflictDelay: 1200
-      });
+      await refresh({ syncCharacterCache: true });
       if (failedDisables > 0) {
-        setToast({
+        showToast({
           type: "warning",
           message: t("mods.library.exclusiveDisableFailed", {
             count: failedDisables
           })
         });
       } else if (enableResult.persistRestored) {
-        setToast({
+        showToast({
           type: "success",
           message: t("mods.status.accessoriesRestored", {
             modName
           })
         });
       } else if (activeGameId === "arknights" && (enableResult.autoReloaded || enableResult.reloadError)) {
-        setToast({ type: enableResult.reloadError ? "error" : "success", message: enableResult.reloadError ? t("arknights.reloadToggleFailed", { error: enableResult.reloadError }) : t("arknights.reloaded", enableResult) });
+        showToast({ type: enableResult.reloadError ? "error" : "success", message: enableResult.reloadError ? t("arknights.reloadToggleFailed", { error: enableResult.reloadError }) : t("arknights.reloaded", enableResult) });
       }
       return;
     }
     const result = await window.api.toggleMod(characterName, modName, newState);
     if (result.pending) {
       pendingFocusRef.current = null;
-      setToast({ type: "warning", message: t("mods.conflicts.confirmToast") });
-      await loadMods();
+      showToast({ type: "warning", message: t("mods.conflicts.confirmToast") });
+      await refresh();
       return;
     }
     if (result.success) {
       recordCharacterUsage(1);
-      await loadMods({
-        syncCharacterCache: true,
-        conflictDelay: 1200
-      });
+      await refresh({ syncCharacterCache: true });
       if (result.persistRestored) {
-        setToast({
+        showToast({
           type: "success",
           message: t("mods.status.accessoriesRestored", {
             modName
@@ -1020,11 +1033,11 @@ function ModView({
         });
       }
       if (activeGameId === "arknights" && (result.autoReloaded || result.reloadError)) {
-        setToast({ type: result.reloadError ? "error" : "success", message: result.reloadError ? t("arknights.reloadToggleFailed", { error: result.reloadError }) : t("arknights.reloaded", result) });
+        showToast({ type: result.reloadError ? "error" : "success", message: result.reloadError ? t("arknights.reloadToggleFailed", { error: result.reloadError }) : t("arknights.reloaded", result) });
       }
     } else {
       pendingFocusRef.current = null;
-      setToast({
+      showToast({
         type: "error",
         message: t("common.errors.operationWithReason", {
           error: result.error
@@ -1252,7 +1265,7 @@ function ModView({
           </div>
         </div>}
       <DirectImportDialog directImportReview={directImportReview} setDirectImportReview={setDirectImportReview} directImportHasManagedInstall={directImportHasManagedInstall} characterName={characterName} directImportTargetSectionName={directImportTargetSectionName} setDirectImportPlanScanMode={setDirectImportPlanScanMode} updateDirectImportScanItem={updateDirectImportScanItem} setDirectImportPreviewItemSelected={setDirectImportPreviewItemSelected} activeGameId={activeGameId} handleStartDirectImportDecrypt={handleStartDirectImportDecrypt} updateDirectClassifyItem={updateDirectClassifyItem} setDirectClassifyInstallMode={setDirectClassifyInstallMode} handleStartDirectImportInstall={handleStartDirectImportInstall} />
-      <ModLibraryPanel collectionByPath={localCollectionView.collectionByPath} mods={mods} confirmingConflicts={confirmingConflicts} confirmConflictSelection={confirmConflictSelection} viewMode={viewMode} characterName={characterName} activeAppearanceSectionName={activeAppearanceSectionName} exclusiveMode={exclusiveMode} toggleExclusiveMode={toggleExclusiveMode} localCollectionsEnabled={localCollectionsEnabled} toggleLocalCollectionsEnabled={toggleLocalCollectionsEnabled} toggleViewMode={toggleViewMode} appearanceSectionsWithStats={appearanceSectionsWithStats} activeAppearanceSectionId={activeAppearanceSectionId} appearanceSectionBusy={appearanceSectionBusy} selectAppearanceSection={selectAppearanceSection} handleSaveCustomAppearanceSection={handleSaveCustomAppearanceSection} handleDeleteCustomAppearanceSection={handleDeleteCustomAppearanceSection} modsLoadError={modsLoadError} modsLoading={modsLoading} loadMods={loadMods} modSearchQuery={modSearchQuery} setModSearchQuery={setModSearchQuery} sortMethod={sortMethod} setSortMethod={setSortMethod} focusNextEnabledMod={focusNextEnabledMod} sortedMods={sortedMods} displayMods={displayMods} selectedTagFilters={selectedTagFilters} toggleTagFilter={toggleTagFilter} clearTagFilters={clearTagFilters} batchMode={batchMode} setBatchMode={setBatchMode} selectedMods={selectedMods} selectAllMods={selectAllMods} deselectAllMods={deselectAllMods} batchToggle={batchToggle} batchDelete={batchDelete} modsListRef={modsListRef} scrollRafRef={scrollRafRef} persistModViewState={persistModViewState} setShowScrollTop={setShowScrollTop} activeAppearanceSection={activeAppearanceSection} appearanceFilterHasNoMatches={appearanceFilterHasNoMatches} activeAppearanceEmptyHint={activeAppearanceEmptyHint} openLocalCollectionGalleryMenu={openLocalCollectionGalleryMenu} selectedMod={selectedMod} detailCollapsed={detailCollapsed} focusPulseModName={focusPulseModName} captureGalleryAnchor={captureGalleryAnchor} setSelectedMod={setSelectedMod} setDetailCollapsed={setDetailCollapsed} openModContextMenu={openModContextMenu} setOpenLocalCollectionGalleryMenu={setOpenLocalCollectionGalleryMenu} selectLocalCollectionVariant={selectLocalCollectionVariant} markModeUnlocked={markModeUnlocked} markedMods={markedMods} activeGameId={activeGameId} handleMarkMod={handleMarkMod} handleToggle={handleToggle} handleSetAbPath={handleSetAbPath} handleTextConfig={handleTextConfig} isDragging={isDragging} setIsDragging={setIsDragging} handleDirectImportDropFiles={handleDirectImportDropFiles} newModFile={newModFile} newModName={newModName} setNewModName={setNewModName} handleAddMod={handleAddMod} setNewModFile={setNewModFile} activeAppearanceImportTargetName={activeAppearanceImportTargetName} draggedMod={draggedMod} dragOverMod={dragOverMod} toggleBatchSelect={toggleBatchSelect} handleModDragStart={handleModDragStart} handleModDragEnd={handleModDragEnd} setDragOverMod={setDragOverMod} handleModDrop={handleModDrop} conflictMap={conflictMap} setShowConflictDetail={setShowConflictDetail} showConflictDetail={showConflictDetail} />
+      <ModLibraryPanel collectionByPath={localCollectionView.collectionByPath} mods={mods} confirmingConflicts={confirmingConflicts} confirmConflictSelection={confirmConflictSelection} viewMode={viewMode} characterName={characterName} activeAppearanceSectionName={activeAppearanceSectionName} exclusiveMode={exclusiveMode} toggleExclusiveMode={toggleExclusiveMode} localCollectionsEnabled={localCollectionsEnabled} toggleLocalCollectionsEnabled={toggleLocalCollectionsEnabled} toggleViewMode={toggleViewMode} appearanceSectionsWithStats={appearanceSectionsWithStats} activeAppearanceSectionId={activeAppearanceSectionId} appearanceSectionBusy={appearanceSectionBusy} selectAppearanceSection={selectAppearanceSection} handleSaveCustomAppearanceSection={handleSaveCustomAppearanceSection} handleDeleteCustomAppearanceSection={handleDeleteCustomAppearanceSection} modsLoadError={modsLoadError} modsLoading={modsLoading} loadMods={loadMods} modSearchQuery={modSearchQuery} setModSearchQuery={setModSearchQuery} sortMethod={sortMethod} setSortMethod={setSortMethod} focusNextEnabledMod={focusNextEnabledMod} sortedMods={sortedMods} displayMods={displayMods} selectedTagFilters={selectedTagFilters} toggleTagFilter={toggleTagFilter} clearTagFilters={clearTagFilters} batchMode={batchMode} setBatchMode={setBatchMode} selectedMods={selectedMods} selectAllMods={selectAllMods} deselectAllMods={deselectAllMods} batchToggle={batchToggle} batchDelete={batchDelete} modsListRef={modsListRef} scrollRafRef={scrollRafRef} persistModViewState={persistModViewState} setShowScrollTop={setShowScrollTop} activeAppearanceSection={activeAppearanceSection} appearanceFilterHasNoMatches={appearanceFilterHasNoMatches} activeAppearanceEmptyHint={activeAppearanceEmptyHint} openLocalCollectionGalleryMenu={openLocalCollectionGalleryMenu} selectedMod={selectedMod} detailCollapsed={detailCollapsed} focusPulseModName={focusPulseModName} captureGalleryAnchor={captureGalleryAnchor} setSelectedMod={setSelectedMod} setDetailCollapsed={setDetailCollapsed} openModContextMenu={openModContextMenu} setOpenLocalCollectionGalleryMenu={setOpenLocalCollectionGalleryMenu} selectLocalCollectionVariant={selectLocalCollectionVariant} markModeUnlocked={markModeUnlocked} markedMods={markedMods} activeGameId={activeGameId} handleMarkMod={handleMarkMod} handleToggle={handleToggle} togglingMod={togglingMod} handleSetAbPath={handleSetAbPath} handleTextConfig={handleTextConfig} isDragging={isDragging} setIsDragging={setIsDragging} handleDirectImportDropFiles={handleDirectImportDropFiles} newModFile={newModFile} newModName={newModName} setNewModName={setNewModName} handleAddMod={handleAddMod} setNewModFile={setNewModFile} activeAppearanceImportTargetName={activeAppearanceImportTargetName} draggedMod={draggedMod} dragOverMod={dragOverMod} toggleBatchSelect={toggleBatchSelect} handleModDragStart={handleModDragStart} handleModDragEnd={handleModDragEnd} setDragOverMod={setDragOverMod} handleModDrop={handleModDrop} conflictMap={conflictMap} setShowConflictDetail={setShowConflictDetail} showConflictDetail={showConflictDetail} />
       {selectedMod && <div className={`mod-gallery-splitter ${isResizingGallery ? "active" : ""} ${detailCollapsed ? "collapsed" : ""}`} aria-hidden={detailCollapsed} inert={detailCollapsed ? "" : void 0} onMouseDown={e => {
       if (e.target.closest(".mod-gallery-collapse-btn")) return;
       if (detailCollapsed) return;
@@ -1277,7 +1290,7 @@ function ModView({
       }}>
           </div>
         </div>}
-      <ModDetailsPanel viewMode={viewMode} selectedMod={selectedMod} detailCollapsed={detailCollapsed} visibleDetailWidth={visibleDetailWidth} isRenamingMod={isRenamingMod} renameModDraft={renameModDraft} setRenameModDraft={setRenameModDraft} handleSaveModRename={handleSaveModRename} setIsRenamingMod={setIsRenamingMod} renameModSaving={renameModSaving} previewImage={previewImage} isDragging={isDragging} previewImageAspectRatio={previewImageAspectRatio} setIsDragging={setIsDragging} characterName={characterName} setImageKey={setImageKey} setPreviewImage={setPreviewImage} loadModDetails={loadModDetails} setToast={setToast} setShowImageLightbox={setShowImageLightbox} setPreviewImageAspectRatio={setPreviewImageAspectRatio} imageKey={imageKey} handleAssignSelectedModAppearanceSection={handleAssignSelectedModAppearanceSection} appearanceSectionBusy={appearanceSectionBusy} appearanceSectionsWithStats={appearanceSectionsWithStats} selectedLocalCollection={selectedLocalCollection} selectLocalCollectionVariant={selectLocalCollectionVariant} selectedTagFilters={selectedTagFilters} toggleTagFilter={toggleTagFilter} activeGameId={activeGameId} isEditingNotes={isEditingNotes} setNotesDraft={setNotesDraft} setIsEditingNotes={setIsEditingNotes} notesDraft={notesDraft} notesSaving={notesSaving} handleSaveModNotes={handleSaveModNotes} isRefreshingHotkeys={isRefreshingHotkeys} hotkeyGroups={hotkeyGroups} editingAliasSection={editingAliasSection} aliasDraft={aliasDraft} setAliasDraft={setAliasDraft} handleSaveHotkeyAlias={handleSaveHotkeyAlias} setEditingAliasSection={setEditingAliasSection} aliasSaving={aliasSaving} editingHotkey={editingHotkey} capturedKey={capturedKey} handleKeyCapture={handleKeyCapture} saveHotkeyEdit={saveHotkeyEdit} cancelHotkeyEdit={cancelHotkeyEdit} startHotkeyEdit={startHotkeyEdit} devMode={devMode} setShowTagManagerModal={setShowTagManagerModal} reloadServerTags={reloadServerTags} modTags={modTags} setModTags={setModTags} tagInput={tagInput} setTagInput={setTagInput} setShowTagSuggestions={setShowTagSuggestions} addTagFromInput={addTagFromInput} handleAiSuggestTags={handleAiSuggestTags} aiTagLoading={aiTagLoading} saveModTags={saveModTags} tagSaving={tagSaving} showTagSuggestions={showTagSuggestions} serverTags={serverTags} aiNameResult={aiNameResult} clearAiSuggestions={clearAiSuggestions} handleAiSuggestName={handleAiSuggestName} aiNameLoading={aiNameLoading} applyAiName={applyAiName} applyAiTags={applyAiTags} aiNameStage={aiNameStage} aiNameElapsedSeconds={aiNameElapsedSeconds} handlePinMod={handlePinMod} openModSourceFolder={openModSourceFolder} handleFixMod={handleGameModTools} fixRunning={fixRunning} confirmDelete={confirmDelete} handleToggle={handleToggle} onOpenPublishMod={onOpenPublishMod} handleCopyDevModInfo={handleCopyDevModInfo} devInfoBusy={devInfoBusy} handleImportDevModInfo={handleImportDevModInfo} />
+      <ModDetailsPanel viewMode={viewMode} selectedMod={selectedMod} detailCollapsed={detailCollapsed} visibleDetailWidth={visibleDetailWidth} isRenamingMod={isRenamingMod} renameModDraft={renameModDraft} setRenameModDraft={setRenameModDraft} handleSaveModRename={handleSaveModRename} setIsRenamingMod={setIsRenamingMod} renameModSaving={renameModSaving} previewImage={previewImage} isDragging={isDragging} previewImageAspectRatio={previewImageAspectRatio} setIsDragging={setIsDragging} characterName={characterName} setImageKey={setImageKey} setPreviewImage={setPreviewImage} loadModDetails={loadModDetails} setToast={setToast} setShowImageLightbox={setShowImageLightbox} setPreviewImageAspectRatio={setPreviewImageAspectRatio} imageKey={imageKey} handleAssignSelectedModAppearanceSection={handleAssignSelectedModAppearanceSection} appearanceSectionBusy={appearanceSectionBusy} appearanceSectionsWithStats={appearanceSectionsWithStats} selectedLocalCollection={selectedLocalCollection} selectLocalCollectionVariant={selectLocalCollectionVariant} selectedTagFilters={selectedTagFilters} toggleTagFilter={toggleTagFilter} activeGameId={activeGameId} isEditingNotes={isEditingNotes} setNotesDraft={setNotesDraft} setIsEditingNotes={setIsEditingNotes} notesDraft={notesDraft} notesSaving={notesSaving} handleSaveModNotes={handleSaveModNotes} isRefreshingHotkeys={isRefreshingHotkeys} hotkeyGroups={hotkeyGroups} editingAliasSection={editingAliasSection} aliasDraft={aliasDraft} setAliasDraft={setAliasDraft} handleSaveHotkeyAlias={handleSaveHotkeyAlias} setEditingAliasSection={setEditingAliasSection} aliasSaving={aliasSaving} editingHotkey={editingHotkey} capturedKey={capturedKey} handleKeyCapture={handleKeyCapture} saveHotkeyEdit={saveHotkeyEdit} cancelHotkeyEdit={cancelHotkeyEdit} startHotkeyEdit={startHotkeyEdit} devMode={devMode} setShowTagManagerModal={setShowTagManagerModal} reloadServerTags={reloadServerTags} modTags={modTags} setModTags={setModTags} tagInput={tagInput} setTagInput={setTagInput} setShowTagSuggestions={setShowTagSuggestions} addTagFromInput={addTagFromInput} handleAiSuggestTags={handleAiSuggestTags} aiTagLoading={aiTagLoading} saveModTags={saveModTags} tagSaving={tagSaving} showTagSuggestions={showTagSuggestions} serverTags={serverTags} aiNameResult={aiNameResult} clearAiSuggestions={clearAiSuggestions} handleAiSuggestName={handleAiSuggestName} aiNameLoading={aiNameLoading} applyAiName={applyAiName} applyAiTags={applyAiTags} aiNameStage={aiNameStage} aiNameElapsedSeconds={aiNameElapsedSeconds} handlePinMod={handlePinMod} openModSourceFolder={openModSourceFolder} handleFixMod={handleGameModTools} fixRunning={fixRunning} confirmDelete={confirmDelete} handleToggle={handleToggle} togglingMod={togglingMod} onOpenPublishMod={onOpenPublishMod} handleCopyDevModInfo={handleCopyDevModInfo} devInfoBusy={devInfoBusy} handleImportDevModInfo={handleImportDevModInfo} />
       {toast && ReactDOM.createPortal(<div className={`toast toast-${toast.type}`}>{toast.message}</div>, document.body)}
       {showDeleteModal && (
         <Modal

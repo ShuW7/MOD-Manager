@@ -1,6 +1,6 @@
 {
   "name": "qaq-revival",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "private": true,
   "license": "MIT",
   "description": "QAQ-Revival — locally maintained Arknights Mod manager",
@@ -11,6 +11,7 @@
     "update:characters": "node tools/update-character-catalogs.cjs",
     "test": "node --test tests/*.test.cjs",
     "test:unit": "node --test tests/*.test.cjs",
+    "test:mod-toggle-ui": "node tools/test-mod-toggle-ui.cjs",
     "test:single-instance": "node --test tests/single-instance.test.cjs",
     "test:random-launch": "node --test tests/random-executable.test.cjs tests/single-instance.test.cjs tests/windows-launch.test.cjs",
     "test:translation": "node --test tests/hotkey-translation.test.cjs",

@@ -85,6 +85,7 @@ export function ModDetailsPanel({
   fixRunning,
   confirmDelete,
   handleToggle,
+  togglingMod,
   onOpenPublishMod,
   handleCopyDevModInfo,
   devInfoBusy,
@@ -123,7 +124,7 @@ export function ModDetailsPanel({
               <span className={`mod-status-badge ${selectedMod.enabled ? "is-enabled" : ""}`}>
                 {selectedMod.enabled ? t("common.status.enabled") : t("common.status.disabled")}
               </span>
-              <button type="button" role="switch" aria-checked={!!(selectedMod.enabled || selectedMod.pendingEnabled)} aria-label={`${selectedMod.enabled ? t("common.actions.disable") : t("common.actions.enable")} ${selectedMod.name}`} className={`toggle-switch-refined ${selectedMod.enabled || selectedMod.pendingEnabled ? "active" : ""} ${selectedMod.pendingEnabled ? "pending" : ""}`} onClick={e => handleToggle(selectedMod.name, selectedMod.enabled, e)} />
+              <button type="button" role="switch" disabled={!!togglingMod} aria-busy={togglingMod === selectedMod.name} aria-checked={!!(selectedMod.enabled || selectedMod.pendingEnabled)} aria-label={`${selectedMod.enabled ? t("common.actions.disable") : t("common.actions.enable")} ${selectedMod.name}`} className={`toggle-switch-refined ${selectedMod.enabled || selectedMod.pendingEnabled ? "active" : ""} ${selectedMod.pendingEnabled ? "pending" : ""}`} onClick={e => handleToggle(selectedMod.name, selectedMod.enabled, e)} />
             </div>
           </header>
           <div className={`image-drop-zone mod-detail-preview ${previewImage ? "has-image" : "is-empty"} ${isDragging ? "dragging" : ""} `} style={{

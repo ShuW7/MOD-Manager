@@ -19,12 +19,15 @@ function fixture(t) {
   const other = { logical: 'skinpack/b.ab', inputs: ['unrelated/b.png'] };
   fs.writeFileSync(path.join(p.bundleRoot, 'bundle-index.json'), JSON.stringify({ schemaVersion: 1, bundles: [active, other] }));
   const runtime = { protocol: 2, pid: 42, manifest: path.join(p.bundleRoot, 'manifest.tsv'), lastPatch: '' };
-  const requests = [], workers = [];
-  let running = true, replyLost = false, mutate = false, remove = false;
-  const reload = createModReloader({ paths: () => p, resolveMod: () => mod, characterIds: () => ['char_001_demo'], sync() {},
+  const requests = [], workers = [], syncs = [];
+  let running = true, replyLost = false, mutate = false, remove = false, mutateDuringStatus = false;
+  const reload = createModReloader({ paths: () => p, resolveMod: () => mod, characterIds: () => ['char_001_demo'], sync(options) { syncs.push(options); },
     async runNative(args) {
       requests.push(args);
-      if (args[0] === '--status') return { success: true, running };
+      if (args[0] === '--status') {
+        if (mutateDuringStatus) fs.writeFileSync(path.join(mod, 'char_001_demo.png'), 'edited after deployment');
+        return { success: true, running };
+      }
       if (args[0] === '--runtime-status') return { success: true, ...runtime };
       assert.equal(args[0], '--reload'); assert.deepEqual(args.slice(-2), ['--pid', '42']);
       runtime.lastPatch = args[2];
@@ -38,8 +41,25 @@ function fixture(t) {
       return { bundles: remove ? [] : [active], removedBundles: remove ? [active] : [] };
     }
   });
-  return { p, mod, reload, runtime, requests, workers, other, configure(options) { ({ running = running, replyLost = replyLost, mutate = mutate, remove = remove } = options); } };
+  return { p, mod, reload, runtime, requests, workers, syncs, other, configure(options) { ({ running = running, replyLost = replyLost, mutate = mutate, remove = remove, mutateDuringStatus = mutateDuringStatus } = options); } };
 }
+
+test('a committed toggle skips a second library deployment but still detects edits during rebuild', async t => {
+  const f = fixture(t);
+  await f.reload({ characterName: 'operator', modName: 'sample' }, { alreadyDeployed: true });
+  assert.deepEqual(f.syncs, []);
+  f.configure({ mutate: true });
+  await assert.rejects(f.reload({ characterName: 'operator', modName: 'sample' }, { alreadyDeployed: true }), /变化|changed/i);
+  assert.equal(f.requests.filter(args => args[0] === '--reload').length, 1);
+  assert.deepEqual(f.syncs, []);
+});
+
+test('edits between deployment and runtime status cannot publish stale deployed resources', async t => {
+  const f = fixture(t); f.configure({ mutateDuringStatus: true });
+  await assert.rejects(f.reload({ characterName: 'operator', modName: 'sample' }, { alreadyDeployed: true }), /变化|changed/i);
+  assert.equal(f.workers.length, 0);
+  assert.equal(f.requests.some(args => args[0] === '--reload'), false);
+});
 
 test('single-Mod reload preserves unrelated routes, recovers a lost reply, and uses the live index for disabling', async t => {
   const f = fixture(t); f.configure({ replyLost: true });

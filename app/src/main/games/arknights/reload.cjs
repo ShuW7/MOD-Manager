@@ -12,6 +12,10 @@ const samePath = (a, b) => path.resolve(a).toLowerCase() === path.resolve(b).toL
 function createModReloader({ paths, resolveMod, characterIds, sync, runNative, runWorker }) {
   return async function reloadMod({ characterName, modName, optional = false }, { alreadyDeployed = false } = {}) {
     const p = paths();
+    // Snapshot the committed Mod before the first IPC await. Edits while the
+    // runtime is being queried must not be mistaken for deployed input.
+    const deployedSource = alreadyDeployed ? resolveMod(characterName, modName) : null;
+    const deployedVersion = deployedSource ? files.fingerprintVersion(deployedSource) : null;
     const running = await runNative(["--status"]);
     if (!running.running) {
       if (optional) return { success: true, autoReloaded: false };
@@ -34,14 +38,15 @@ function createModReloader({ paths, resolveMod, characterIds, sync, runNative, r
     files.assertNoLinks(indexDirectory);
     const index = JSON.parse(fs.readFileSync(path.join(indexDirectory, "bundle-index.json"), "utf8"));
     if (index.schemaVersion !== 1 || !Array.isArray(index.bundles) || index.bundles.length > 200) throw Error(i18n.t("arknights.errors.reloadUnavailable"));
-    const source = resolveMod(characterName, modName);
+    const source = deployedSource || resolveMod(characterName, modName);
     const id = modId(path.join(path.dirname(source), path.basename(source).replace(files.DISABLED, "")));
     const affectedBundles = index.bundles.filter(bundle => bundle.inputs?.some(input => input.startsWith(id + "/"))).map(bundle => bundle.logical);
     const fingerprintMemo = {};
     const fingerprint = files.fingerprint(source, {}, fingerprintMemo);
-    // A toggle already forced this Mod into Resources. Check for subsequent
-    // library edits without staging the same deployment a second time.
-    sync(alreadyDeployed ? {} : { changedModPath: source });
+    if (alreadyDeployed && files.fingerprintVersion(source) !== deployedVersion) throw Error(i18n.t("arknights.errors.changed"));
+    // A toggle already validated and committed Resources. Do not rescan the
+    // entire library a second time; the fingerprint below detects input edits.
+    if (!alreadyDeployed) sync({ changedModPath: source });
     const output = path.join(reloadRoot, crypto.randomUUID());
     files.assertOutsideGame(output, p.gamePath);
     let sent = false;

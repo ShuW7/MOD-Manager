@@ -52,6 +52,7 @@ let activityOpenRequest = 0;
 let activityEpoch = 0;
 let charactersGameId = null;
 let overlayExclusive = false;
+let togglingMod = "";
 // Keep display preferences across game sessions.
 let overlayViewMode = (() => {
   try {
@@ -1772,9 +1773,15 @@ function renderMods() {
   // Single shared toggle handler — selects both list and gallery
   // switches via the data-toggle attribute.
   container.querySelectorAll('[data-toggle="1"]').forEach((toggle) => {
+    toggle.disabled = !!togglingMod;
+    toggle.setAttribute("aria-busy", String(toggle.dataset.mod === togglingMod));
     toggle.addEventListener("click", async (e) => {
       e.stopPropagation();
+      if (togglingMod) return;
       const modName = toggle.dataset.mod;
+      togglingMod = modName;
+      container.querySelectorAll('[data-toggle="1"]').forEach(button => { button.disabled = true; });
+      toggle.setAttribute("aria-busy", "true");
       const currentlyEnabled = toggle.dataset.enabled === "true" || currentMods.find(mod => mod.name === modName)?.pendingEnabled;
       try {
         hideCuteContextMenu();
@@ -1847,6 +1854,12 @@ function renderMods() {
       } catch (error) {
         pendingFocusState = null;
         showToast(error?.message || t("overlay.mods.toggleFailed"));
+      } finally {
+        togglingMod = "";
+        container.querySelectorAll('[data-toggle="1"]').forEach(button => {
+          button.disabled = false;
+          button.setAttribute("aria-busy", "false");
+        });
       }
     });
   });

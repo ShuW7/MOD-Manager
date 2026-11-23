@@ -137,9 +137,14 @@ function inspect(root) {
   }
   return { files, resources, bundles, collisions, identities, manifests, keys: [...seen.keys()], ab: abMod.readConfig(root), kind: bundles.length ? "bundle" : resources.length ? "m4a" : "unknown" };
 }
+function fingerprintInputs(root, options = {}) {
+  return [...walk(root, { ...options, includeDisabled: true }), ...readBindings(root).manifests].sort((a, b) => a.relative.localeCompare(b.relative));
+}
+const inputVersion = inputs => JSON.stringify(inputs.map(file => [file.relative, file.dev, file.ino, file.size, file.mtimeMs, file.ctimeMs]));
+function fingerprintVersion(root) { return inputVersion(fingerprintInputs(root)); }
 function fingerprint(root, options = {}, memo) {
-  const inputs = [...walk(root, { ...options, includeDisabled: true }), ...readBindings(root).manifests].sort((a, b) => a.relative.localeCompare(b.relative));
-  const version = memo && JSON.stringify(inputs.map(file => [file.relative, file.dev, file.ino, file.size, file.mtimeMs, file.ctimeMs]));
+  const inputs = fingerprintInputs(root, options);
+  const version = memo && inputVersion(inputs);
   if (memo && memo.root === root && memo.version === version) return memo.hash;
   const digest = crypto.createHash("sha256");
   const buffer = Buffer.alloc(1024 * 1024);
@@ -180,4 +185,4 @@ function renameDirectory(from, to, rename = fs.renameSync) {
   }
 }
 
-module.exports = { BUNDLES, RESOURCES, DISABLED, RESOURCE_MANIFEST, ignored, inside, assertNoLinks, assertOutsideGame, walk, resourceKey, readBindings, inspect, fingerprint, assertLoadable, renameDirectory };
+module.exports = { BUNDLES, RESOURCES, DISABLED, RESOURCE_MANIFEST, ignored, inside, assertNoLinks, assertOutsideGame, walk, resourceKey, readBindings, inspect, fingerprint, fingerprintVersion, assertLoadable, renameDirectory };
